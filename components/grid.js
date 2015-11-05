@@ -14,6 +14,8 @@ module.exports = function() {
     gridSize: 2,
     objGrid: null,
     objCollision: null,
+    visible: true,
+
     start: function() {
       var minx = 0;
       var maxx = this.num;
@@ -81,7 +83,15 @@ module.exports = function() {
       var objCollision = new THREE.Mesh(geometry);
 
       this.objGrid = object;
+      this.objGrid.visible = this.visible;
       this.objCollision = objCollision;
+    },
+
+    setVisible: function(value) {
+      this.visible = value;
+      if (!!this.objGrid) {
+        this.objGrid.visible = this.visible;
+      }
     },
 
     dispose: function() {

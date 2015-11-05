@@ -7,6 +7,7 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
+  var isPause = false;
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -98,7 +99,15 @@ var Engine = function() {
     }
   };
 
+  var pause = function(value) {
+    isPause = value === undefined ? true : value;
+  };
+
   var tick = function(dt) {
+    if (isPause) {
+      return;
+    }
+
     for (var type in systems) {
       var system = systems[type];
       if (system._started !== true) {
@@ -139,7 +148,8 @@ var Engine = function() {
     value: bindValue,
     attach: attach,
     dettach: dettach,
-    tick: tick
+    tick: tick,
+    pause: pause
   };
 
   return engine;

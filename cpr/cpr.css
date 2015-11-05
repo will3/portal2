@@ -11,3 +11,13 @@
     width: 20px;
     height: 20px;
 }
+
+.cpr-custom {
+    display: inline-block;
+    vertical-align: top;
+    border-width: 2;
+    padding: 1;
+    /* 100 minus border and padding*/
+    width: 94px;
+    height: 20px;
+}

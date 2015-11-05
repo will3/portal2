@@ -5,14 +5,30 @@ var THREE = require('three');
 var mesher = require('../voxel/mesher');
 
 module.exports = function() {
-  var map = null;
   var colors = [null];
   var dirty = false;
   var mesh = null;
+  var chunks = {};
 
   return {
     size: 16,
     gridSize: 2,
+    obj: null,
+
+    getChunk: function(x, y, z) {
+      var origin = new THREE.Vector3(Math.floor(x), Math.floor(y), Math.floor(z));
+      var id = [origin.x, origin.y, origin.z].join(',');
+
+      if (chunks[id] === undefined) {
+        chunks[id] = {
+          origin: origin,
+          map: ndarray([], [this.size, this.size, this.size]),
+          dirty: false,
+          mesh: null
+        };
+      }
+      return chunks[id];
+    },
 
     set: function(x, y, z, block) {
       var color = block.color;
@@ -22,49 +38,44 @@ module.exports = function() {
         index = colors.length - 1;
       }
 
-      map.set(x, y, z, index);
-      dirty = true;
-    },
-
-    serialize: function() {
-      var colors = [];
-      var data = map.data;
-      var shape = map.shape;
-      var d = {};
-      for (var i in data) {
-        d[i] = data[i];
-      }
-      return {
-        colors: colors,
-        d: d,
-        size: this.size
-      };
-    },
-
-    deserialize: function(data) {
-      colors = data.colors;
-      var size = data.size;
-      map = ndarray([], [size, size, size]);
-      for (var i in data) {
-        map.data[i] = data[i];
-      }
+      var chunk = this.getChunk(x, y, z);
+      var origin = chunk.origin;
+      chunk.map.set(x - origin.x, y - origin.y, z - origin.z, index);
+      chunk.dirty = true;
     },
 
     start: function() {
-      map = ndarray([], [this.size, this.size, this.size]);
-      this._updateMesh();
+      this.obj = new THREE.Object3D();
+      this.object.add(this.obj);
     },
 
     tick: function() {
-      if (dirty) {
-        this._updateMesh();
-        dirty = false;
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        if (chunk.dirty) {
+          this._updateChunk(chunk);
+          chunk.dirty = false;
+        }
       }
     },
 
-    _updateMesh: function() {
+    dispose: function() {
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        if (chunk.mesh !== null) {
+          chunk.geometry.dispose();
+          chunk.material.dispose();
+        }
+      }
+      this.object.remove(this.obj);
+    },
+
+    _updateChunk: function(chunk) {
+      var mesh = chunk.mesh;
+      var map = chunk.map;
+
       if (mesh !== null) {
-        this.object.remove(mesh);
+        this.obj.remove(mesh);
         mesh.geometry.dispose();
         mesh.material.dispose();
       }
@@ -88,15 +99,19 @@ module.exports = function() {
       });
 
       geometry.computeFaceNormals();
-      // geometry.computeVertexNormals();
 
       var material = new THREE.MeshLambertMaterial({
         vertexColors: true
       });
 
       mesh = new THREE.Mesh(geometry, material);
+      chunk.mesh = mesh;
 
-      this.object.add(mesh);
+      var origin = chunk.origin.clone();
+      origin.multiplyScalar(this.gridSize);
+      mesh.position.copy(origin);
+
+      this.obj.add(mesh);
     }
   };
 };

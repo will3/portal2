@@ -1,0 +1,29 @@
+body {
+    margin: 0;
+    overflow: hidden;
+}
+
+nav {
+    height: 42px;
+    background-color: #161616;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+nav > a {
+    font-size: 16px;
+    height: 42px;
+    line-height: 42px;
+    float: right;
+    margin-right: 20px;
+}
+
+i:hover {
+    color: #ccc
+}
+
+i {
+    color: #fff;
+}

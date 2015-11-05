@@ -17,8 +17,10 @@
     "tests"
   ],
   "dependencies": {
-    "three.js": "~0.72.0",
+    "font-awesome": "~4.4.0",
     "jquery": "~2.1.4",
-    "lodash": "~3.10.1"
+    "lodash": "~3.10.1",
+    "three.js": "~0.72.0",
+    "vex": "~2.3.2"
   }
 }

@@ -18,24 +18,33 @@ module.exports = function() {
 
     mouseenter: function() {
       state.mouseenter = true;
+      state.keyholds = [];
     },
 
     mouseleave: function() {
       state.mouseleave = true;
+      state.keyholds = [];
     },
 
     keydown: function(e) {
-      state.keydowns.push(keycode(e));
+      var key = keycode(e);
+      state.keydowns.push(key);
+      if (!_.includes(state.keyholds, key)) {
+        state.keyholds.push(key);
+      }
     },
 
     keyup: function(e) {
-      state.keyups.push(keycode(e));
+      var key = keycode(e);
+      state.keyups.push(key);
+      _.pull(state.keyholds, key);
     }
   };
 
   var state = {
     keydowns: [],
     keyups: [],
+    keyholds: [],
     mouseX: 0,
     mouseY: 0,
     mousedowns: [],
@@ -47,6 +56,9 @@ module.exports = function() {
     },
     keyup: function(key) {
       return _.includes(this.keyups, key);
+    },
+    keyhold: function(key) {
+      return _.includes(this.keyholds, key);
     },
     mousedown: function(button) {
       if (button === undefined) {

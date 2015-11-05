@@ -11,12 +11,19 @@ module.exports = function(input) {
     ySpeed: 0.01,
     target: new THREE.Vector3(),
     distance: 50,
+    zoomRate: 1.1,
 
     start: function() {
       this.updatePosition();
     },
 
     tick: function() {
+      this._updateMouse();
+      this._updateKeyboard();
+      this.updatePosition();
+    },
+
+    _updateMouse: function() {
       var inputState = input.state;
 
       if (inputState.mousedown(2)) {
@@ -49,6 +56,18 @@ module.exports = function(input) {
 
       lastX = inputState.mouseX;
       lastY = inputState.mouseY;
+    },
+
+    _updateKeyboard: function() {
+      var inputState = input.state;
+
+      if (inputState.keydown('-')) {
+        this.distance *= this.zoomRate;
+      }
+
+      if (inputState.keydown('=')) {
+        this.distance /= this.zoomRate;
+      }
     },
 
     updatePosition: function() {

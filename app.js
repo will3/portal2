@@ -13,8 +13,9 @@ var depthMaterial, depthTarget, composer;
 
 function init() {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.z = 5;
+  camera.rotation.order = 'YXZ';
 
   renderer = new THREE.WebGLRenderer({
     antialias: true
@@ -86,8 +87,7 @@ engine.component('cameraController', ['input', require('./components/cameracontr
 engine.component('grid', require('./components/grid'));
 engine.component('editor', ['game', 'input', 'camera', require('./components/editor')]);
 engine.component('blockModel', require('./components/blockmodel'));
-
-engine.attach(camera, 'cameraController');
+engine.component('firstPersonControl', ['input', require('./components/firstpersoncontrol')]);
 
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
@@ -104,3 +104,23 @@ cpr({
     editor.setColor(parseInt('0x' + color.toHex()));
   }
 });
+
+var todayDateString;
+todayDateString = new Date().toJSON().slice(0, 10);
+
+// vex.dialog.open({
+//   message: 'Name your creation',
+//   input: '<input name="name" type="text" placeholder="Name" required/>',
+//   buttons: [
+//     $.extend({}, vex.dialog.buttons.YES, {
+//       text: 'Save'
+//     }), $.extend({}, vex.dialog.buttons.NO, {
+//       text: 'Cancel'
+//     })
+//   ],
+//   callback: function(data) {
+//     console.log(data);
+//   }
+// });
+
+// engine.pause();
