@@ -111,6 +111,12 @@ cpr({
   palette: palette,
   click: function(color) {
     editor.setColor(parseInt('0x' + color.toHex()));
+  },
+  focus: function() {
+    engine.pause();
+  },
+  blur: function() {
+    engine.pause(false);
   }
 });
 
@@ -125,7 +131,7 @@ var formatUrl = function() {
 $('#link-share').click(function() {
   engine.pause();
   vex.dialog.open({
-    message: 'Name your creation',
+    message: 'Save your creation',
     input: '<input id="name-input" value="' + name + '" name="name" type="text" pattern="[a-zA-Z0-9 ]+" placeholder="Name" autocomplete="off" required/><div id="dialog-url">' + formatUrl() + '</div>',
     buttons: [
       $.extend({}, vex.dialog.buttons.YES, {
@@ -212,7 +218,7 @@ $('#link-redo i').addClass('disabled');
 
 window.onbeforeunload = function() {
   if (editor.pendingSave) {
-    return "you will lose any unsaved changes. Are you sure to exit?";
+    return "You will lose any unsaved changes. Are you sure to exit?";
   }
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
@@ -420,7 +426,7 @@ module.exports = function(input) {
   var mousehold = false;
   var lastX = 0;
   var lastY = 0;
-  var rotation = new THREE.Euler(Math.PI / 2 - 0.1,0, 0, 'YXZ');
+  var rotation = new THREE.Euler(Math.PI / 2 - 0.1, 0, 0, 'YXZ');
 
   return {
     xSpeed: 0.01,
@@ -428,6 +434,9 @@ module.exports = function(input) {
     target: new THREE.Vector3(),
     distance: 50,
     zoomRate: 1.1,
+    minZoom: 0.25,
+    maxZoom: 4,
+    zoomScale: 1,
 
     start: function() {
       this.updatePosition();
@@ -478,16 +487,22 @@ module.exports = function(input) {
       var inputState = input.state;
 
       if (inputState.keydown('-')) {
-        this.distance *= this.zoomRate;
+        this.zoomScale *= this.zoomRate;
       }
 
       if (inputState.keydown('=')) {
-        this.distance /= this.zoomRate;
+        this.zoomScale /= this.zoomRate;
+      }
+
+      if (this.zoomScale < this.minZoom) {
+        this.zoomScale = this.minZoom;
+      } else if (this.zoomScale > this.maxZoom) {
+        this.zoomScale = this.maxZoom;
       }
     },
 
     updatePosition: function() {
-      var forward = new THREE.Vector3(0, 0, 1).applyEuler(rotation).multiplyScalar(this.distance);
+      var forward = new THREE.Vector3(0, 0, 1).applyEuler(rotation).multiplyScalar(this.distance * this.zoomScale);
       var position = this.target.clone().sub(forward);
       var camera = this.object;
       camera.position.copy(position);
@@ -1066,6 +1081,41 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
+  var listeners = {};
+
+  var on = function(event, callback) {
+    var list = listeners[event];
+    if (list === undefined) {
+      list = listeners[event] = [];
+    }
+    list = listeners[event].push(callback);
+  };
+
+  var dispatchEvent = function(event) {
+    var args = Array.prototype.slice.call(arguments);
+    args.shift();
+
+    var list = listeners[event];
+    if (list === undefined) {
+      return;
+    }
+
+    list.forEach(function(callback) {
+      callback.apply(null, args);
+    });
+  };
+
+  var removeListener = function(event, callback) {
+    var list = listeners[event];
+    if (list === undefined) {
+      return;
+    }
+    _.pull(list, callback);
+
+    if (callback === undefined) {
+      delete listeners[event];
+    }
+  };
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -1160,6 +1210,11 @@ var Engine = function() {
   var pausing = false;
   var pause = function(value) {
     pausing = value === undefined ? true : value;
+    if (pause) {
+      dispatchEvent('pause');
+    } else {
+      dispatchEvent('resume');
+    }
   };
 
   var tick = function(dt) {
@@ -1211,7 +1266,9 @@ var Engine = function() {
     attach: attach,
     dettach: dettach,
     tick: tick,
-    pause: pause
+    pause: pause,
+    on: on,
+    removeListener: removeListener
   };
 
   return engine;
@@ -1304,6 +1361,15 @@ module.exports = function(game) {
     }
   };
 
+  var clearTemporalStates = function() {
+    state.keydowns = [];
+    state.keyups = [];
+    state.mousedowns = [];
+    state.mouseups = [];
+    state.mouseenter = false;
+    state.mouseleave = false;
+  };
+
   return {
     start: function() {
       window.addEventListener('mousemove', listeners['mousemove']);
@@ -1313,17 +1379,15 @@ module.exports = function(game) {
       window.addEventListener('mouseleave', listeners['mouseleave']);
       window.addEventListener('keydown', listeners['keydown']);
       window.addEventListener('keyup', listeners['keyup']);
+      game.on('pause', function() {
+        clearTemporalStates();
+      });
     },
 
     state: state,
 
     lateTick: function() {
-      state.keydowns = [];
-      state.keyups = [];
-      state.mousedowns = [];
-      state.mouseups = [];
-      state.mouseenter = false;
-      state.mouseleave = false;
+      clearTemporalStates();
     },
 
     dispose: function() {
@@ -1352,23 +1416,48 @@ function invertColor(hexTripletColor) {
   return color;
 }
 
+var makeBlock = function() {
+  return $('<div/>').addClass('cpr-block cpr-unselectable');
+};
+
+
+
 var cpr = function(options) {
+  var root = $('<div/>');
+  var lastBlock = null;
+
+  var addBlock = function(color) {
+    var block = makeBlock();
+    block.css('background-color', color);
+    if (lastBlock === null) {
+      root.append(block);
+    } else {
+      block.insertAfter(lastBlock);
+    }
+    lastBlock = block;
+  };
+
   var palette = options.palette || [];
 
-  var root = $('<div/>');
-  root.addClass('cpr-container');
+  root.addClass('cpr-container cpr-unselectable');
 
   document.body.appendChild(root.get()[0]);
 
   for (var i = 0; i < palette.length; i++) {
-    var color = tinycolor(palette[i]);
-
-    var block = $('<div/>').addClass('cpr-block');
-    block.css('background-color', color.toHexString());
-    root.append(block);
+    var color = tinycolor(palette[i]).toHexString();
+    addBlock(color);
   }
 
+  var preview = makeBlock().attr("id", "cpr-preview");
+  root.append(preview);
+
+  root.append($('<br>'));
+
   var placeholder = 'ffffff';
+
+  var input = $('<input class="cpr-input" placeholder="f6f6f6" type="text"></i></input>');
+
+  root.append(input);
 
   $(document).on('click', '.cpr-container .cpr-block', function() {
     var color = $(this).css('background-color');
@@ -1376,6 +1465,41 @@ var cpr = function(options) {
       options.click(tinycolor(color));
     }
   });
+
+  input.focus(function() {
+    if (options.focus !== undefined) {
+      options.focus();
+    }
+  });
+
+  input.blur(function() {
+    if (options.blur !== undefined) {
+      options.blur();
+    }
+  });
+
+  input.on('input', function() {
+    var value = input.val();
+    var color = tinycolor(value).toHexString();
+    if (value.length >= 3) {
+      preview.show();
+    } else {
+      preview.hide();
+    }
+    $('#cpr-preview').css('background-color', color);
+  });
+
+  input.keyup(function(e) {
+    if (e.keyCode === 13) {
+      var value = input.val();
+      addBlock(tinycolor(value).toHexString());
+      input.val('');
+      preview.hide();
+      input.blur();
+    }
+  });
+
+  preview.hide();
 };
 
 module.exports = cpr;
@@ -24648,7 +24772,13 @@ module.exports = [
   'rgb(228,173,47)',
   'rgb(215,185,150)',
   'rgb(191,145,121)',
-  'rgb(32,32,32)'
+  'rgb(32,32,32)',
+  'rgb(226,137,132)',
+  'rgb(100,34,31)',
+  'rgb(224,218,215)',
+  'rgb(98,149,195)',
+  'rgb(32,164,72)',
+  'rgb(234,31,35)'
 ];
 },{}],19:[function(require,module,exports){
 module.exports = require('./monotone').mesher;

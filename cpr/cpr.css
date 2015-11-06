@@ -12,12 +12,31 @@
     height: 20px;
 }
 
-.cpr-custom {
-    display: inline-block;
-    vertical-align: top;
-    border-width: 2;
-    padding: 1;
-    /* 100 minus border and padding*/
-    width: 94px;
+.cpr-block > i {
+    color: #333;
+    width: 20px;
     height: 20px;
+    text-align: center;
+    line-height: 20px;
+}
+
+.cpr-unselectable {
+    -moz-user-select: -moz-none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    /*
+     Introduced in IE 10.
+     See http://ie.microsoft.com/testdrive/HTML5/msUserSelect/
+   */
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.cpr-input {
+    /*80 - 2 * (padding + margin)*/
+    width: 34px;
+    height: 20px;
+    border-width: 2px;
+    padding: 1px;
+    outline: none;
 }

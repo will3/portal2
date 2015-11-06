@@ -109,6 +109,12 @@ cpr({
   palette: palette,
   click: function(color) {
     editor.setColor(parseInt('0x' + color.toHex()));
+  },
+  focus: function() {
+    engine.pause();
+  },
+  blur: function() {
+    engine.pause(false);
   }
 });
 
@@ -123,7 +129,7 @@ var formatUrl = function() {
 $('#link-share').click(function() {
   engine.pause();
   vex.dialog.open({
-    message: 'Name your creation',
+    message: 'Save your creation',
     input: '<input id="name-input" value="' + name + '" name="name" type="text" pattern="[a-zA-Z0-9 ]+" placeholder="Name" autocomplete="off" required/><div id="dialog-url">' + formatUrl() + '</div>',
     buttons: [
       $.extend({}, vex.dialog.buttons.YES, {
@@ -210,6 +216,6 @@ $('#link-redo i').addClass('disabled');
 
 window.onbeforeunload = function() {
   if (editor.pendingSave) {
-    return "you will lose any unsaved changes. Are you sure to exit?";
+    return "You will lose any unsaved changes. Are you sure to exit?";
   }
 };

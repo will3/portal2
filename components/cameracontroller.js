@@ -4,7 +4,7 @@ module.exports = function(input) {
   var mousehold = false;
   var lastX = 0;
   var lastY = 0;
-  var rotation = new THREE.Euler(Math.PI / 2 - 0.1,0, 0, 'YXZ');
+  var rotation = new THREE.Euler(Math.PI / 2 - 0.1, 0, 0, 'YXZ');
 
   return {
     xSpeed: 0.01,
@@ -12,6 +12,9 @@ module.exports = function(input) {
     target: new THREE.Vector3(),
     distance: 50,
     zoomRate: 1.1,
+    minZoom: 0.25,
+    maxZoom: 4,
+    zoomScale: 1,
 
     start: function() {
       this.updatePosition();
@@ -62,16 +65,22 @@ module.exports = function(input) {
       var inputState = input.state;
 
       if (inputState.keydown('-')) {
-        this.distance *= this.zoomRate;
+        this.zoomScale *= this.zoomRate;
       }
 
       if (inputState.keydown('=')) {
-        this.distance /= this.zoomRate;
+        this.zoomScale /= this.zoomRate;
+      }
+
+      if (this.zoomScale < this.minZoom) {
+        this.zoomScale = this.minZoom;
+      } else if (this.zoomScale > this.maxZoom) {
+        this.zoomScale = this.maxZoom;
       }
     },
 
     updatePosition: function() {
-      var forward = new THREE.Vector3(0, 0, 1).applyEuler(rotation).multiplyScalar(this.distance);
+      var forward = new THREE.Vector3(0, 0, 1).applyEuler(rotation).multiplyScalar(this.distance * this.zoomScale);
       var position = this.target.clone().sub(forward);
       var camera = this.object;
       camera.position.copy(position);

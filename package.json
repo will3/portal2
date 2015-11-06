@@ -30,6 +30,7 @@
     "lodash": "^3.10.1",
     "mkdirp": "^0.5.1",
     "ndarray": "^1.0.18",
+    "serve-favicon": "^2.3.0",
     "three": "^0.73.0",
     "tinycolor": "0.0.1",
     "tinycolor2": "^1.1.2",

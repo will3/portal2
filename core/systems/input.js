@@ -81,6 +81,15 @@ module.exports = function(game) {
     }
   };
 
+  var clearTemporalStates = function() {
+    state.keydowns = [];
+    state.keyups = [];
+    state.mousedowns = [];
+    state.mouseups = [];
+    state.mouseenter = false;
+    state.mouseleave = false;
+  };
+
   return {
     start: function() {
       window.addEventListener('mousemove', listeners['mousemove']);
@@ -90,17 +99,15 @@ module.exports = function(game) {
       window.addEventListener('mouseleave', listeners['mouseleave']);
       window.addEventListener('keydown', listeners['keydown']);
       window.addEventListener('keyup', listeners['keyup']);
+      game.on('pause', function() {
+        clearTemporalStates();
+      });
     },
 
     state: state,
 
     lateTick: function() {
-      state.keydowns = [];
-      state.keyups = [];
-      state.mousedowns = [];
-      state.mouseups = [];
-      state.mouseenter = false;
-      state.mouseleave = false;
+      clearTemporalStates();
     },
 
     dispose: function() {

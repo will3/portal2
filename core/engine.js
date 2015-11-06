@@ -7,6 +7,41 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
+  var listeners = {};
+
+  var on = function(event, callback) {
+    var list = listeners[event];
+    if (list === undefined) {
+      list = listeners[event] = [];
+    }
+    list = listeners[event].push(callback);
+  };
+
+  var dispatchEvent = function(event) {
+    var args = Array.prototype.slice.call(arguments);
+    args.shift();
+
+    var list = listeners[event];
+    if (list === undefined) {
+      return;
+    }
+
+    list.forEach(function(callback) {
+      callback.apply(null, args);
+    });
+  };
+
+  var removeListener = function(event, callback) {
+    var list = listeners[event];
+    if (list === undefined) {
+      return;
+    }
+    _.pull(list, callback);
+
+    if (callback === undefined) {
+      delete listeners[event];
+    }
+  };
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -101,6 +136,11 @@ var Engine = function() {
   var pausing = false;
   var pause = function(value) {
     pausing = value === undefined ? true : value;
+    if (pause) {
+      dispatchEvent('pause');
+    } else {
+      dispatchEvent('resume');
+    }
   };
 
   var tick = function(dt) {
@@ -152,7 +192,9 @@ var Engine = function() {
     attach: attach,
     dettach: dettach,
     tick: tick,
-    pause: pause
+    pause: pause,
+    on: on,
+    removeListener: removeListener
   };
 
   return engine;
