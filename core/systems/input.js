@@ -1,32 +1,38 @@
 var keycode = require('keycode');
 var _ = require('lodash');
 
-module.exports = function() {
+module.exports = function(game) {
   var listeners = {
     mousemove: function(e) {
+      if (game.pausing) return;
       state.mouseX = e.clientX;
       state.mouseY = e.clientY;
     },
 
     mousedown: function(e) {
+      if (game.pausing) return;
       state.mousedowns.push(e.button);
     },
 
     mouseup: function(e) {
+      if (game.pausing) return;
       state.mouseups.push(e.button);
     },
 
     mouseenter: function() {
+      if (game.pausing) return;
       state.mouseenter = true;
       state.keyholds = [];
     },
 
     mouseleave: function() {
+      if (game.pausing) return;
       state.mouseleave = true;
       state.keyholds = [];
     },
 
     keydown: function(e) {
+      if (game.pausing) return;
       var key = keycode(e);
       state.keydowns.push(key);
       if (!_.includes(state.keyholds, key)) {
@@ -35,6 +41,7 @@ module.exports = function() {
     },
 
     keyup: function(e) {
+      if (game.pausing) return;
       var key = keycode(e);
       state.keyups.push(key);
       _.pull(state.keyholds, key);

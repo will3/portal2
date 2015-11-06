@@ -78,10 +78,11 @@ window.addEventListener('resize', function() {
   camera.updateProjectionMatrix();
 });
 
-engine.system('input', brock.input());
 engine.value('scene', scene);
 engine.value('camera', camera);
 engine.value('game', engine);
+
+engine.system('input', brock.input(engine));
 
 engine.component('cameraController', ['input', require('./components/cameracontroller')]);
 engine.component('grid', require('./components/grid'));
@@ -89,8 +90,14 @@ engine.component('editor', ['game', 'input', 'camera', require('./components/edi
 engine.component('blockModel', require('./components/blockmodel'));
 engine.component('firstPersonControl', ['input', require('./components/firstpersoncontrol')]);
 
+//load data from hidden div
+var formdata = JSON.parse($('#data').html() || {});
+var embedded = formdata.data || {};
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
+if (embedded.length > 0) {
+  editor.embedded = embedded;
+}
 scene.add(object);
 
 var palette = require('./palette');
@@ -105,22 +112,104 @@ cpr({
   }
 });
 
-var todayDateString;
-todayDateString = new Date().toJSON().slice(0, 10);
+var host = 'http://172.17.12.114:3000';
+var user = formdata.user || 'demo';
+var name = formdata.name || '';
 
-// vex.dialog.open({
-//   message: 'Name your creation',
-//   input: '<input name="name" type="text" placeholder="Name" required/>',
-//   buttons: [
-//     $.extend({}, vex.dialog.buttons.YES, {
-//       text: 'Save'
-//     }), $.extend({}, vex.dialog.buttons.NO, {
-//       text: 'Cancel'
-//     })
-//   ],
-//   callback: function(data) {
-//     console.log(data);
-//   }
-// });
+var formatUrl = function() {
+  return host + '/v/' + escape(user) + '/' + escape(name);
+};
 
-// engine.pause();
+$('#link-share').click(function() {
+  engine.pause();
+  vex.dialog.open({
+    message: 'Name your creation',
+    input: '<input id="name-input" value="' + name + '" name="name" type="text" pattern="[a-zA-Z0-9 ]+" placeholder="Name" autocomplete="off" required/><div id="dialog-url">' + formatUrl() + '</div>',
+    buttons: [
+      $.extend({}, vex.dialog.buttons.YES, {
+        text: 'Save'
+      }), $.extend({}, vex.dialog.buttons.NO, {
+        text: 'Cancel'
+      })
+    ],
+    callback: function(data) {
+      engine.pause(false);
+
+      if (data === false) return;
+
+      $.ajax({
+        type: "POST",
+        url: host + '/save',
+        data: JSON.stringify({
+          user: user,
+          name: $("#name-input").val(),
+          data: JSON.stringify(editor.blockModel.serialize())
+        }),
+        contentType: "application/json; charset=utf-8"
+          // dataType: "json"
+      }).done(function() {
+        window.history.pushState('saved', 'Portal', formatUrl());
+        editor.pendingSave = false;
+      }).fail(function() {
+
+      });
+      $("#name-input").unbind();
+    }
+  });
+
+  $("#name-input").bind("change paste keyup", function() {
+    name = $("#name-input").val();
+    $("#dialog-url").html(formatUrl);
+  });
+});
+
+$('#link-add').click(function() {
+  $('#link-add i').addClass('highlighted');
+  $('#link-remove i').removeClass('highlighted');
+  editor.setTool('add');
+});
+
+$('#link-remove').click(function() {
+  $('#link-remove i').addClass('highlighted');
+  $('#link-add i').removeClass('highlighted');
+  editor.setTool('remove');
+});
+
+editor.commandsChanged(function(commands, redos) {
+  if (commands.length === 0) {
+    $('#link-undo i').addClass('disabled');
+  } else {
+    $('#link-undo i').removeClass('disabled');
+  }
+
+  if (redos.length === 0) {
+    $('#link-redo i').addClass('disabled');
+  } else {
+    $('#link-redo i').removeClass('disabled');
+  }
+});
+
+$('#link-undo').click(function() {
+  editor.undo();
+});
+
+$('#link-redo').click(function() {
+  editor.redo();
+});
+
+$('#link-new').click(function() {
+  //only redirect if not empty
+  if (!editor.empty) {
+    window.location = "/";
+  }
+});
+
+$('#link-add i').addClass('highlighted');
+$('#link-undo i').addClass('disabled');
+$('#link-redo i').addClass('disabled');
+
+window.onbeforeunload = function() {
+  if (editor.pendingSave) {
+    return "you will lose any unsaved changes. Are you sure to exit?";
+  }
+};

@@ -15,11 +15,17 @@ module.exports = function() {
     gridSize: 2,
     obj: null,
 
-    getChunk: function(x, y, z) {
-      var origin = new THREE.Vector3(Math.floor(x), Math.floor(y), Math.floor(z));
+    getChunk: function(x, y, z, query) {
+      query = query || false;
+      var origin = new THREE.Vector3(Math.floor(x / this.size), Math.floor(y / this.size), Math.floor(z / this.size));
       var id = [origin.x, origin.y, origin.z].join(',');
+      origin.multiplyScalar(this.size);
 
       if (chunks[id] === undefined) {
+        if (query) {
+          return undefined;
+        }
+
         chunks[id] = {
           origin: origin,
           map: ndarray([], [this.size, this.size, this.size]),
@@ -30,9 +36,18 @@ module.exports = function() {
       return chunks[id];
     },
 
+    getRaw: function(x, y, z) {
+      var chunk = this.getChunk(x, y, z, true);
+      if (chunk === undefined) {
+        return undefined;
+      }
+      var origin = chunk.origin;
+      return chunk.map.get(x - origin.x, y - origin.y, z - origin.z);
+    },
+
     set: function(x, y, z, block) {
       var color = block.color;
-      var index = _.findIndex(colors, color);
+      var index = _.indexOf(colors, color);
       if (index === -1) {
         colors.push(color);
         index = colors.length - 1;
@@ -41,6 +56,13 @@ module.exports = function() {
       var chunk = this.getChunk(x, y, z);
       var origin = chunk.origin;
       chunk.map.set(x - origin.x, y - origin.y, z - origin.z, index);
+      chunk.dirty = true;
+    },
+
+    setRaw: function(x, y, z, raw) {
+      var chunk = this.getChunk(x, y, z);
+      var origin = chunk.origin;
+      chunk.map.set(x - origin.x, y - origin.y, z - origin.z, raw);
       chunk.dirty = true;
     },
 
@@ -60,6 +82,11 @@ module.exports = function() {
     },
 
     dispose: function() {
+      this._disposeChunk();
+      this.object.remove(this.obj);
+    },
+
+    _disposeChunk: function() {
       for (var id in chunks) {
         var chunk = chunks[id];
         if (chunk.mesh !== null) {
@@ -67,7 +94,56 @@ module.exports = function() {
           chunk.material.dispose();
         }
       }
-      this.object.remove(this.obj);
+    },
+
+    serialize: function() {
+      var d = {};
+
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        var data = chunk.map.data;
+        var shape = chunk.map.shape;
+
+        for (var i = 0; i < shape[0]; i++) {
+          for (var j = 0; j < shape[1]; j++) {
+            for (var k = 0; k < shape[2]; k++) {
+              var b = chunk.map.get(i, j, k);
+              if (b === 0 || b === undefined || b === null) {
+                continue;
+              }
+
+              var pos = [
+                i + chunk.origin.x,
+                j + chunk.origin.y,
+                k + chunk.origin.z
+              ];
+
+              d[pos.join(',')] = b;
+            }
+          }
+        }
+      }
+
+      return {
+        gridSize: this.gridSize,
+        size: this.size,
+        colors: colors,
+        data: d
+      };
+    },
+
+    deserialize: function(json) {
+      this._disposeChunk();
+      chunks = {};
+
+      if (json.gridSize !== undefined) this.gridSize = json.gridSize;
+      if (json.size !== undefined) this.size = json.size;
+      if (json.colors !== undefined) colors = json.colors;
+
+      for (var id in json.data) {
+        var pos = id.split(',');
+        this.setRaw(parseInt(pos[0]), parseInt(pos[1]), parseInt(pos[2]), json.data[id]);
+      }
     },
 
     _updateChunk: function(chunk) {

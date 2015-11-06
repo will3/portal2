@@ -7,7 +7,6 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
-  var isPause = false;
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -99,12 +98,13 @@ var Engine = function() {
     }
   };
 
+  var pausing = false;
   var pause = function(value) {
-    isPause = value === undefined ? true : value;
+    pausing = value === undefined ? true : value;
   };
 
   var tick = function(dt) {
-    if (isPause) {
+    if (pausing) {
       return;
     }
 
@@ -142,6 +142,9 @@ var Engine = function() {
   interval();
 
   var engine = {
+    get pausing() {
+      return pausing;
+    },
     frameRate: 48.0,
     component: bindComponent,
     system: bindSystem,

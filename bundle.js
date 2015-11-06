@@ -80,10 +80,11 @@ window.addEventListener('resize', function() {
   camera.updateProjectionMatrix();
 });
 
-engine.system('input', brock.input());
 engine.value('scene', scene);
 engine.value('camera', camera);
 engine.value('game', engine);
+
+engine.system('input', brock.input(engine));
 
 engine.component('cameraController', ['input', require('./components/cameracontroller')]);
 engine.component('grid', require('./components/grid'));
@@ -91,8 +92,14 @@ engine.component('editor', ['game', 'input', 'camera', require('./components/edi
 engine.component('blockModel', require('./components/blockmodel'));
 engine.component('firstPersonControl', ['input', require('./components/firstpersoncontrol')]);
 
+//load data from hidden div
+var formdata = JSON.parse($('#data').html() || {});
+var embedded = formdata.data || {};
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
+if (embedded.length > 0) {
+  editor.embedded = embedded;
+}
 scene.add(object);
 
 var palette = require('./palette');
@@ -107,27 +114,109 @@ cpr({
   }
 });
 
-var todayDateString;
-todayDateString = new Date().toJSON().slice(0, 10);
+var host = 'http://172.17.12.114:3000';
+var user = formdata.user || 'demo';
+var name = formdata.name || '';
 
-// vex.dialog.open({
-//   message: 'Name your creation',
-//   input: '<input name="name" type="text" placeholder="Name" required/>',
-//   buttons: [
-//     $.extend({}, vex.dialog.buttons.YES, {
-//       text: 'Save'
-//     }), $.extend({}, vex.dialog.buttons.NO, {
-//       text: 'Cancel'
-//     })
-//   ],
-//   callback: function(data) {
-//     console.log(data);
-//   }
-// });
+var formatUrl = function() {
+  return host + '/v/' + escape(user) + '/' + escape(name);
+};
 
-// engine.pause();
+$('#link-share').click(function() {
+  engine.pause();
+  vex.dialog.open({
+    message: 'Name your creation',
+    input: '<input id="name-input" value="' + name + '" name="name" type="text" pattern="[a-zA-Z0-9 ]+" placeholder="Name" autocomplete="off" required/><div id="dialog-url">' + formatUrl() + '</div>',
+    buttons: [
+      $.extend({}, vex.dialog.buttons.YES, {
+        text: 'Save'
+      }), $.extend({}, vex.dialog.buttons.NO, {
+        text: 'Cancel'
+      })
+    ],
+    callback: function(data) {
+      engine.pause(false);
+
+      if (data === false) return;
+
+      $.ajax({
+        type: "POST",
+        url: host + '/save',
+        data: JSON.stringify({
+          user: user,
+          name: $("#name-input").val(),
+          data: JSON.stringify(editor.blockModel.serialize())
+        }),
+        contentType: "application/json; charset=utf-8"
+          // dataType: "json"
+      }).done(function() {
+        window.history.pushState('saved', 'Portal', formatUrl());
+        editor.pendingSave = false;
+      }).fail(function() {
+
+      });
+      $("#name-input").unbind();
+    }
+  });
+
+  $("#name-input").bind("change paste keyup", function() {
+    name = $("#name-input").val();
+    $("#dialog-url").html(formatUrl);
+  });
+});
+
+$('#link-add').click(function() {
+  $('#link-add i').addClass('highlighted');
+  $('#link-remove i').removeClass('highlighted');
+  editor.setTool('add');
+});
+
+$('#link-remove').click(function() {
+  $('#link-remove i').addClass('highlighted');
+  $('#link-add i').removeClass('highlighted');
+  editor.setTool('remove');
+});
+
+editor.commandsChanged(function(commands, redos) {
+  if (commands.length === 0) {
+    $('#link-undo i').addClass('disabled');
+  } else {
+    $('#link-undo i').removeClass('disabled');
+  }
+
+  if (redos.length === 0) {
+    $('#link-redo i').addClass('disabled');
+  } else {
+    $('#link-redo i').removeClass('disabled');
+  }
+});
+
+$('#link-undo').click(function() {
+  editor.undo();
+});
+
+$('#link-redo').click(function() {
+  editor.redo();
+});
+
+$('#link-new').click(function() {
+  //only redirect if not empty
+  if (!editor.empty) {
+    window.location = "/";
+  }
+});
+
+$('#link-add i').addClass('highlighted');
+$('#link-undo i').addClass('disabled');
+$('#link-redo i').addClass('disabled');
+
+window.onbeforeunload = function() {
+  if (editor.pendingSave) {
+    return "you will lose any unsaved changes. Are you sure to exit?";
+  }
+};
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./components/blockmodel":2,"./components/cameracontroller":3,"./components/editor":4,"./components/firstpersoncontrol":5,"./components/grid":6,"./core/engine":7,"./cpr/cpr.js":9,"./palette":17,"jquery":10}],2:[function(require,module,exports){
+},{"./components/blockmodel":2,"./components/cameracontroller":3,"./components/editor":5,"./components/firstpersoncontrol":6,"./components/grid":7,"./core/engine":8,"./cpr/cpr.js":10,"./palette":18,"jquery":11}],2:[function(require,module,exports){
 (function (global){
 var ndarray = require('ndarray');
 var _ = require('lodash');
@@ -146,11 +235,17 @@ module.exports = function() {
     gridSize: 2,
     obj: null,
 
-    getChunk: function(x, y, z) {
-      var origin = new THREE.Vector3(Math.floor(x), Math.floor(y), Math.floor(z));
+    getChunk: function(x, y, z, query) {
+      query = query || false;
+      var origin = new THREE.Vector3(Math.floor(x / this.size), Math.floor(y / this.size), Math.floor(z / this.size));
       var id = [origin.x, origin.y, origin.z].join(',');
+      origin.multiplyScalar(this.size);
 
       if (chunks[id] === undefined) {
+        if (query) {
+          return undefined;
+        }
+
         chunks[id] = {
           origin: origin,
           map: ndarray([], [this.size, this.size, this.size]),
@@ -161,9 +256,18 @@ module.exports = function() {
       return chunks[id];
     },
 
+    getRaw: function(x, y, z) {
+      var chunk = this.getChunk(x, y, z, true);
+      if (chunk === undefined) {
+        return undefined;
+      }
+      var origin = chunk.origin;
+      return chunk.map.get(x - origin.x, y - origin.y, z - origin.z);
+    },
+
     set: function(x, y, z, block) {
       var color = block.color;
-      var index = _.findIndex(colors, color);
+      var index = _.indexOf(colors, color);
       if (index === -1) {
         colors.push(color);
         index = colors.length - 1;
@@ -172,6 +276,13 @@ module.exports = function() {
       var chunk = this.getChunk(x, y, z);
       var origin = chunk.origin;
       chunk.map.set(x - origin.x, y - origin.y, z - origin.z, index);
+      chunk.dirty = true;
+    },
+
+    setRaw: function(x, y, z, raw) {
+      var chunk = this.getChunk(x, y, z);
+      var origin = chunk.origin;
+      chunk.map.set(x - origin.x, y - origin.y, z - origin.z, raw);
       chunk.dirty = true;
     },
 
@@ -191,6 +302,11 @@ module.exports = function() {
     },
 
     dispose: function() {
+      this._disposeChunk();
+      this.object.remove(this.obj);
+    },
+
+    _disposeChunk: function() {
       for (var id in chunks) {
         var chunk = chunks[id];
         if (chunk.mesh !== null) {
@@ -198,7 +314,56 @@ module.exports = function() {
           chunk.material.dispose();
         }
       }
-      this.object.remove(this.obj);
+    },
+
+    serialize: function() {
+      var d = {};
+
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        var data = chunk.map.data;
+        var shape = chunk.map.shape;
+
+        for (var i = 0; i < shape[0]; i++) {
+          for (var j = 0; j < shape[1]; j++) {
+            for (var k = 0; k < shape[2]; k++) {
+              var b = chunk.map.get(i, j, k);
+              if (b === 0 || b === undefined || b === null) {
+                continue;
+              }
+
+              var pos = [
+                i + chunk.origin.x,
+                j + chunk.origin.y,
+                k + chunk.origin.z
+              ];
+
+              d[pos.join(',')] = b;
+            }
+          }
+        }
+      }
+
+      return {
+        gridSize: this.gridSize,
+        size: this.size,
+        colors: colors,
+        data: d
+      };
+    },
+
+    deserialize: function(json) {
+      this._disposeChunk();
+      chunks = {};
+
+      if (json.gridSize !== undefined) this.gridSize = json.gridSize;
+      if (json.size !== undefined) this.size = json.size;
+      if (json.colors !== undefined) colors = json.colors;
+
+      for (var id in json.data) {
+        var pos = id.split(',');
+        this.setRaw(parseInt(pos[0]), parseInt(pos[1]), parseInt(pos[2]), json.data[id]);
+      }
     },
 
     _updateChunk: function(chunk) {
@@ -247,7 +412,7 @@ module.exports = function() {
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../voxel/mesher":18,"lodash":12,"ndarray":13}],3:[function(require,module,exports){
+},{"../voxel/mesher":19,"lodash":13,"ndarray":14}],3:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
@@ -255,7 +420,7 @@ module.exports = function(input) {
   var mousehold = false;
   var lastX = 0;
   var lastY = 0;
-  var rotation = new THREE.Euler(Math.PI / 4, Math.PI / 4, 0, 'YXZ');
+  var rotation = new THREE.Euler(Math.PI / 2 - 0.1,0, 0, 'YXZ');
 
   return {
     xSpeed: 0.01,
@@ -293,14 +458,14 @@ module.exports = function(input) {
         var diffX = inputState.mouseX - lastX;
         var diffY = inputState.mouseY - lastY;
 
-        rotation.y += diffX * this.xSpeed;
+        rotation.y -= diffX * this.xSpeed;
         if (rotation.x > Math.PI / 2) {
           rotation.x = Math.PI / 2;
         } else if (rotation.x < -Math.PI / 2) {
           rotation.x = -Math.PI / 2;
         }
 
-        rotation.x -= diffY * this.ySpeed;
+        rotation.x += diffY * this.ySpeed;
 
         this.updatePosition();
       }
@@ -332,8 +497,29 @@ module.exports = function(input) {
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],4:[function(require,module,exports){
+module.exports = function(blockModel, coord, value, valueRaw) {
+  var original;
+
+  return {
+    run: function() {
+      original = blockModel.getRaw(coord.x, coord.y, coord.z);
+
+      if (!value) {
+        blockModel.setRaw(coord.x, coord.y, coord.z, valueRaw);
+      } else {
+        blockModel.set(coord.x, coord.y, coord.z, value);
+      }
+    },
+
+    undo: function() {
+      blockModel.setRaw(coord.x, coord.y, coord.z, original);
+    }
+  }
+};
+},{}],5:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+var setCommand = require('./commands/set');
 
 module.exports = function(game, input, camera) {
 
@@ -355,14 +541,25 @@ module.exports = function(game, input, camera) {
   };
 
   var coord = null;
+  var coordChunk = null;
   var hoverover = null;
   var objBlockModel = new THREE.Object3D();
   var mousehold = false;
   var lastCoord = null;
   var cameraComponent = null;
   var lastMousedown = 0;
+  var commands = [];
+  var redos = [];
+  var commandsListeners = [];
+
+  var notifyCommandsChanged = function() {
+    commandsListeners.forEach(function(l) {
+      l(commands, redos);
+    });
+  };
 
   return {
+    embedded: null,
     grid: null,
     blockModel: null,
     gridSize: 2,
@@ -370,6 +567,20 @@ module.exports = function(game, input, camera) {
     color: 0x000000,
     clickTime: 200,
     mode: 'grid',
+    tool: 'add',
+    pendingSave: false,
+    empty: true,
+
+    get commands() {
+      return commands;
+    },
+
+    setTool: function(value) {
+      if (this.tool !== value) {
+        this.tool = value;
+        this._updateHoverover();
+      }
+    },
 
     setColor: function(value) {
       this.color = value;
@@ -388,6 +599,28 @@ module.exports = function(game, input, camera) {
       }
     },
 
+    undo: function() {
+      if (commands.length > 0) {
+        var last = commands[commands.length - 1];
+        last.undo();
+        commands.pop();
+        redos.push(last);
+      }
+
+      notifyCommandsChanged();
+    },
+
+    redo: function() {
+      if (redos.length > 0) {
+        var last = redos[redos.length - 1];
+        last.run();
+        redos.pop();
+        commands.push(last);
+      }
+
+      notifyCommandsChanged();
+    },
+
     start: function() {
       this.grid = game.attach(this.object, 'grid');
       this.grid.gridSize = this.gridSize;
@@ -400,6 +633,17 @@ module.exports = function(game, input, camera) {
 
       this._updateHoverover();
       this._attachCameraComponent();
+
+      if (this.embedded !== null) {
+        this.empty = false;
+        //try deserialize
+        try {
+          this.blockModel.deserialize(JSON.parse(this.embedded));
+        } catch (err) {
+          //show error
+          console.log(err);
+        }
+      }
     },
 
     tick: function() {
@@ -408,6 +652,7 @@ module.exports = function(game, input, camera) {
       }
 
       this._updateCoord();
+      this._updateCoordChunk();
       this._updateHoveroverPosition();
       this._updateInput();
 
@@ -446,14 +691,21 @@ module.exports = function(game, input, camera) {
 
       //update add block
       if (this.mode === 'grid') {
-        if (mousehold && coord !== null) {
-          //if no last coord, or last coord is different from coord
-          if (!lastCoord || !lastCoord.equals(coord)) {
-            this.blockModel.set(coord.x, coord.y, coord.z, {
-              color: this.color
-            });
-
-            lastCoord = coord.clone();
+        if (this.tool === 'add') {
+          if (mousehold && coord !== null) {
+            //if no last coord, or last coord is different from coord
+            if (!lastCoord || !lastCoord.equals(coord)) {
+              var command = setCommand(this.blockModel, coord, {
+                color: this.color
+              });
+              this._runCommand(command);
+              lastCoord = coord.clone();
+            }
+          }
+        } else if (this.tool === 'remove') {
+          if (mousehold && coordChunk !== null) {
+            var command = setCommand(this.blockModel, coordChunk, null, undefined);
+            this._runCommand(command);
           }
         }
 
@@ -462,10 +714,18 @@ module.exports = function(game, input, camera) {
           this.grid.setVisible(!this.grid.visible);
         }
       } else if (this.mode === 'firstPerson') {
-        if (mouseclick && coord !== null) {
-          this.blockModel.set(coord.x, coord.y, coord.z, {
-            color: this.color
-          });
+        if (this.tool === 'add') {
+          if (mouseclick && coord !== null) {
+            var command = setCommand(this.blockModel, coord, {
+              color: this.color
+            });
+            this._runCommand(command);
+          }
+        } else if (this.tool === 'remove') {
+          if (mouseclick && coordChunk !== null) {
+            var command = setCommand(this.blockModel, coordChunk, null, undefined);
+            this._runCommand(command);
+          }
         }
       }
 
@@ -482,14 +742,16 @@ module.exports = function(game, input, camera) {
     },
 
     _updateHoveroverPosition: function() {
-      if (coord === null) {
+      var coordToUse = this.tool === 'add' ? coord : coordChunk;
+
+      if (coordToUse === null) {
         hoverover.visible = false;
         return;
       }
 
       hoverover.visible = true;
       hoverover.position.copy(
-        coord.clone()
+        coordToUse.clone()
         .add(new THREE.Vector3(0.5, 0.5, 0.5))
         .multiplyScalar(this.gridSize)
       );
@@ -512,11 +774,29 @@ module.exports = function(game, input, camera) {
       var point = intersects[0].point;
       var position = point.clone().sub(camera.position);
       position.setLength(position.length() - 0.01).add(camera.position);
-      coord = position.multiplyScalar(1 / this.gridSize);
+      position.multiplyScalar(1 / this.gridSize);
       coord = new THREE.Vector3(
-        Math.round(coord.x - 0.5),
-        Math.round(coord.y - 0.5),
-        Math.round(coord.z - 0.5));
+        Math.round(position.x - 0.5),
+        Math.round(position.y - 0.5),
+        Math.round(position.z - 0.5));
+    },
+
+    _updateCoordChunk: function() {
+      var raycaster = getRaycaster();
+      var intersects = raycaster.intersectObject(this.blockModel.obj, true);
+      if (intersects.length === 0) {
+        coordChunk = null;
+        return;
+      }
+
+      var point = intersects[0].point;
+      var position = point.clone().sub(camera.position);
+      position.setLength(position.length() + 0.01).add(camera.position);
+      position.multiplyScalar(1 / this.gridSize);
+      coordChunk = new THREE.Vector3(
+        Math.round(position.x - 0.5),
+        Math.round(position.y - 0.5),
+        Math.round(position.z - 0.5));
     },
 
     _updateHoverover: function() {
@@ -527,8 +807,14 @@ module.exports = function(game, input, camera) {
       var geometry = new THREE.BoxGeometry(this.gridSize, this.gridSize, this.gridSize);
       var cube = new THREE.Mesh(geometry);
 
-      var darkerColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
-      var edges = new THREE.EdgesHelper(cube, darkerColor);
+      var hoveroverColor;
+      if (this.tool === 'add') {
+        hoveroverColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
+      } else {
+        hoveroverColor = 0x000000;
+      }
+
+      var edges = new THREE.EdgesHelper(cube, hoveroverColor);
       toDispose(edges.geometry);
       toDispose(edges.material);
       var object = new THREE.Object3D();
@@ -539,15 +825,29 @@ module.exports = function(game, input, camera) {
       this.object.add(hoverover);
     },
 
+    _runCommand: function(command) {
+      command.run();
+      commands.push(command);
+      redos = [];
+      notifyCommandsChanged();
+      this.pendingSave = true;
+      this.empty = false;
+    },
+
     dispose: function() {
       disposeList.forEach(function(obj) {
         obj.dispose();
       });
+      commandsListeners = null;
+    },
+
+    commandsChanged: function(callback) {
+      commandsListeners.push(callback);
     }
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],5:[function(require,module,exports){
+},{"./commands/set":4}],6:[function(require,module,exports){
 //attach a first person control on an object/camera
 module.exports = function(input) {
   var forward = 0;
@@ -649,7 +949,7 @@ module.exports = function(input) {
     }
   }
 };
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
@@ -755,7 +1055,7 @@ module.exports = function() {
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 (function (global){
 var _ = require('lodash');
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
@@ -766,7 +1066,6 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
-  var isPause = false;
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -858,12 +1157,13 @@ var Engine = function() {
     }
   };
 
+  var pausing = false;
   var pause = function(value) {
-    isPause = value === undefined ? true : value;
+    pausing = value === undefined ? true : value;
   };
 
   var tick = function(dt) {
-    if (isPause) {
+    if (pausing) {
       return;
     }
 
@@ -901,6 +1201,9 @@ var Engine = function() {
   interval();
 
   var engine = {
+    get pausing() {
+      return pausing;
+    },
     frameRate: 48.0,
     component: bindComponent,
     system: bindSystem,
@@ -917,36 +1220,42 @@ var Engine = function() {
 Engine.input = require('./systems/input');
 module.exports = Engine;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./systems/input":8,"lodash":12}],8:[function(require,module,exports){
+},{"./systems/input":9,"lodash":13}],9:[function(require,module,exports){
 var keycode = require('keycode');
 var _ = require('lodash');
 
-module.exports = function() {
+module.exports = function(game) {
   var listeners = {
     mousemove: function(e) {
+      if (game.pausing) return;
       state.mouseX = e.clientX;
       state.mouseY = e.clientY;
     },
 
     mousedown: function(e) {
+      if (game.pausing) return;
       state.mousedowns.push(e.button);
     },
 
     mouseup: function(e) {
+      if (game.pausing) return;
       state.mouseups.push(e.button);
     },
 
     mouseenter: function() {
+      if (game.pausing) return;
       state.mouseenter = true;
       state.keyholds = [];
     },
 
     mouseleave: function() {
+      if (game.pausing) return;
       state.mouseleave = true;
       state.keyholds = [];
     },
 
     keydown: function(e) {
+      if (game.pausing) return;
       var key = keycode(e);
       state.keydowns.push(key);
       if (!_.includes(state.keyholds, key)) {
@@ -955,6 +1264,7 @@ module.exports = function() {
     },
 
     keyup: function(e) {
+      if (game.pausing) return;
       var key = keycode(e);
       state.keyups.push(key);
       _.pull(state.keyholds, key);
@@ -1027,7 +1337,7 @@ module.exports = function() {
     }
   };
 };
-},{"keycode":11,"lodash":12}],9:[function(require,module,exports){
+},{"keycode":12,"lodash":13}],10:[function(require,module,exports){
 var $ = require('jquery');
 var tinycolor = require('tinycolor2');
 
@@ -1069,7 +1379,7 @@ var cpr = function(options) {
 };
 
 module.exports = cpr;
-},{"jquery":10,"tinycolor2":16}],10:[function(require,module,exports){
+},{"jquery":11,"tinycolor2":17}],11:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.1.4
  * http://jquery.com/
@@ -10281,7 +10591,7 @@ return jQuery;
 
 }));
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 // Source: http://jsfiddle.net/vWx8V/
 // http://stackoverflow.com/questions/5603195/full-list-of-javascript-keycodes
 
@@ -10430,7 +10740,7 @@ for (var alias in aliases) {
   codes[alias] = aliases[alias]
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -22785,7 +23095,7 @@ for (var alias in aliases) {
 }.call(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 var iota = require("iota-array")
 var isBuffer = require("is-buffer")
 
@@ -23130,7 +23440,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
 
 module.exports = wrappedNDArrayCtor
 
-},{"iota-array":14,"is-buffer":15}],14:[function(require,module,exports){
+},{"iota-array":15,"is-buffer":16}],15:[function(require,module,exports){
 "use strict"
 
 function iota(n) {
@@ -23142,7 +23452,7 @@ function iota(n) {
 }
 
 module.exports = iota
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -23161,7 +23471,7 @@ module.exports = function (obj) {
     ))
 }
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 // TinyColor v1.1.2
 // https://github.com/bgrins/TinyColor
 // Brian Grinstead, MIT License
@@ -24326,7 +24636,7 @@ else {
 
 })();
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 module.exports = [
   'rgb(252,226,193)',
   'rgb(42,37,30)',
@@ -24340,9 +24650,9 @@ module.exports = [
   'rgb(191,145,121)',
   'rgb(32,32,32)'
 ];
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 module.exports = require('./monotone').mesher;
-},{"./monotone":19}],19:[function(require,module,exports){
+},{"./monotone":20}],20:[function(require,module,exports){
 "use strict";
 
 var MonotoneMesh = (function(){

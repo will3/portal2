@@ -1,0 +1,1 @@
+module.exports = new RegExp("[a-zA-Z0-9 ]+");

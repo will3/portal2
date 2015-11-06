@@ -5,7 +5,8 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "watchify app.js -o bundle.js -v"
+    "build": "watchify app.js -o bundle.js -v",
+    "start": "nodemon"
   },
   "author": "",
   "license": "MIT",
@@ -20,10 +21,14 @@
     ]
   },
   "dependencies": {
+    "body-parser": "^1.14.1",
     "browserify": "^12.0.1",
+    "express": "^4.13.3",
+    "express-handlebars": "^2.0.1",
     "jquery": "^2.1.4",
     "keycode": "^2.1.0",
     "lodash": "^3.10.1",
+    "mkdirp": "^0.5.1",
     "ndarray": "^1.0.18",
     "three": "^0.73.0",
     "tinycolor": "0.0.1",

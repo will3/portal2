@@ -4,7 +4,7 @@ module.exports = function(input) {
   var mousehold = false;
   var lastX = 0;
   var lastY = 0;
-  var rotation = new THREE.Euler(Math.PI / 4, Math.PI / 4, 0, 'YXZ');
+  var rotation = new THREE.Euler(Math.PI / 2 - 0.1,0, 0, 'YXZ');
 
   return {
     xSpeed: 0.01,
@@ -42,14 +42,14 @@ module.exports = function(input) {
         var diffX = inputState.mouseX - lastX;
         var diffY = inputState.mouseY - lastY;
 
-        rotation.y += diffX * this.xSpeed;
+        rotation.y -= diffX * this.xSpeed;
         if (rotation.x > Math.PI / 2) {
           rotation.x = Math.PI / 2;
         } else if (rotation.x < -Math.PI / 2) {
           rotation.x = -Math.PI / 2;
         }
 
-        rotation.x -= diffY * this.ySpeed;
+        rotation.x += diffY * this.ySpeed;
 
         this.updatePosition();
       }
