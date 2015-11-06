@@ -22,6 +22,7 @@ function init() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
+  renderer.shadowMapType = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
 
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
@@ -29,6 +30,8 @@ function init() {
 
   var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
   directionalLight.position.set(0.5, 1.0, 0.8);
+  // directionalLight.castShadow = true;
+  // directionalLight.shadowDarkness = 0.5;
   scene.add(directionalLight);
 
   // //depth
@@ -82,7 +85,7 @@ engine.value('scene', scene);
 engine.value('camera', camera);
 engine.value('game', engine);
 
-engine.system('input', brock.input(engine));
+engine.system('input', brock.input(engine, renderer.domElement));
 
 engine.component('cameraController', ['input', require('./components/cameracontroller')]);
 engine.component('grid', require('./components/grid'));
@@ -118,7 +121,8 @@ cpr({
   }
 });
 
-var host = 'http://172.17.12.114:3000';
+var host = 'http://localhost:3000';
+// var host = 'http://172.17.12.114:3000';
 var user = formdata.user || 'demo';
 var name = formdata.name || '';
 
@@ -169,18 +173,6 @@ $('#link-share').click(function() {
   });
 });
 
-$('#link-add').click(function() {
-  $('#link-add i').addClass('highlighted');
-  $('#link-remove i').removeClass('highlighted');
-  editor.setTool('add');
-});
-
-$('#link-remove').click(function() {
-  $('#link-remove i').addClass('highlighted');
-  $('#link-add i').removeClass('highlighted');
-  editor.setTool('remove');
-});
-
 editor.commandsChanged(function(commands, redos) {
   if (commands.length === 0) {
     $('#link-undo i').addClass('disabled');
@@ -210,7 +202,6 @@ $('#link-new').click(function() {
   }
 });
 
-$('#link-add i').addClass('highlighted');
 $('#link-undo i').addClass('disabled');
 $('#link-redo i').addClass('disabled');
 

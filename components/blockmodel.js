@@ -181,6 +181,8 @@ module.exports = function() {
       });
 
       mesh = new THREE.Mesh(geometry, material);
+      // mesh.castShadow = true;
+      // mesh.receiveShadow = true;
       chunk.mesh = mesh;
 
       var origin = chunk.origin.clone();

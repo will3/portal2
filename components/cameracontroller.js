@@ -1,7 +1,6 @@
 var THREE = require('three');
 
 module.exports = function(input) {
-  var mousehold = false;
   var lastX = 0;
   var lastY = 0;
   var rotation = new THREE.Euler(Math.PI / 2 - 0.1, 0, 0, 'YXZ');
@@ -28,31 +27,19 @@ module.exports = function(input) {
 
     _updateMouse: function() {
       var inputState = input.state;
+      var drag = inputState.mousehold(2);
 
-      if (inputState.mousedown(2)) {
-        mousehold = true;
-      }
-
-      if (inputState.mouseup(2)) {
-        mousehold = false;
-      }
-
-      if (inputState.mouseenter || inputState.mouseleave) {
-        mousehold = false;
-      }
-
-      if (mousehold) {
+      if (drag) {
         var diffX = inputState.mouseX - lastX;
         var diffY = inputState.mouseY - lastY;
 
         rotation.y -= diffX * this.xSpeed;
-        if (rotation.x > Math.PI / 2) {
-          rotation.x = Math.PI / 2;
-        } else if (rotation.x < -Math.PI / 2) {
-          rotation.x = -Math.PI / 2;
-        }
-
         rotation.x += diffY * this.ySpeed;
+        if (rotation.x > Math.PI / 2 - 0.01) {
+          rotation.x = Math.PI / 2 - 0.01;
+        } else if (rotation.x < -Math.PI / 2 + 0.01) {
+          rotation.x = -Math.PI / 2 + 0.01;
+        }
 
         this.updatePosition();
       }

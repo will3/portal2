@@ -24,6 +24,7 @@ function init() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
+  renderer.shadowMapType = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
 
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
@@ -31,6 +32,8 @@ function init() {
 
   var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
   directionalLight.position.set(0.5, 1.0, 0.8);
+  // directionalLight.castShadow = true;
+  // directionalLight.shadowDarkness = 0.5;
   scene.add(directionalLight);
 
   // //depth
@@ -84,7 +87,7 @@ engine.value('scene', scene);
 engine.value('camera', camera);
 engine.value('game', engine);
 
-engine.system('input', brock.input(engine));
+engine.system('input', brock.input(engine, renderer.domElement));
 
 engine.component('cameraController', ['input', require('./components/cameracontroller')]);
 engine.component('grid', require('./components/grid'));
@@ -120,7 +123,8 @@ cpr({
   }
 });
 
-var host = 'http://172.17.12.114:3000';
+var host = 'http://localhost:3000';
+// var host = 'http://172.17.12.114:3000';
 var user = formdata.user || 'demo';
 var name = formdata.name || '';
 
@@ -171,18 +175,6 @@ $('#link-share').click(function() {
   });
 });
 
-$('#link-add').click(function() {
-  $('#link-add i').addClass('highlighted');
-  $('#link-remove i').removeClass('highlighted');
-  editor.setTool('add');
-});
-
-$('#link-remove').click(function() {
-  $('#link-remove i').addClass('highlighted');
-  $('#link-add i').removeClass('highlighted');
-  editor.setTool('remove');
-});
-
 editor.commandsChanged(function(commands, redos) {
   if (commands.length === 0) {
     $('#link-undo i').addClass('disabled');
@@ -212,7 +204,6 @@ $('#link-new').click(function() {
   }
 });
 
-$('#link-add i').addClass('highlighted');
 $('#link-undo i').addClass('disabled');
 $('#link-redo i').addClass('disabled');
 
@@ -407,6 +398,8 @@ module.exports = function() {
       });
 
       mesh = new THREE.Mesh(geometry, material);
+      // mesh.castShadow = true;
+      // mesh.receiveShadow = true;
       chunk.mesh = mesh;
 
       var origin = chunk.origin.clone();
@@ -423,7 +416,6 @@ module.exports = function() {
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
 module.exports = function(input) {
-  var mousehold = false;
   var lastX = 0;
   var lastY = 0;
   var rotation = new THREE.Euler(Math.PI / 2 - 0.1, 0, 0, 'YXZ');
@@ -450,31 +442,19 @@ module.exports = function(input) {
 
     _updateMouse: function() {
       var inputState = input.state;
+      var drag = inputState.mousehold(2);
 
-      if (inputState.mousedown(2)) {
-        mousehold = true;
-      }
-
-      if (inputState.mouseup(2)) {
-        mousehold = false;
-      }
-
-      if (inputState.mouseenter || inputState.mouseleave) {
-        mousehold = false;
-      }
-
-      if (mousehold) {
+      if (drag) {
         var diffX = inputState.mouseX - lastX;
         var diffY = inputState.mouseY - lastY;
 
         rotation.y -= diffX * this.xSpeed;
-        if (rotation.x > Math.PI / 2) {
-          rotation.x = Math.PI / 2;
-        } else if (rotation.x < -Math.PI / 2) {
-          rotation.x = -Math.PI / 2;
-        }
-
         rotation.x += diffY * this.ySpeed;
+        if (rotation.x > Math.PI / 2 - 0.01) {
+          rotation.x = Math.PI / 2 - 0.01;
+        } else if (rotation.x < -Math.PI / 2 + 0.01) {
+          rotation.x = -Math.PI / 2 + 0.01;
+        }
 
         this.updatePosition();
       }
@@ -557,9 +537,9 @@ module.exports = function(game, input, camera) {
 
   var coord = null;
   var coordChunk = null;
+  var coordAbove = null;
   var hoverover = null;
   var objBlockModel = new THREE.Object3D();
-  var mousehold = false;
   var lastCoord = null;
   var cameraComponent = null;
   var lastMousedown = 0;
@@ -582,19 +562,11 @@ module.exports = function(game, input, camera) {
     color: 0x000000,
     clickTime: 200,
     mode: 'grid',
-    tool: 'add',
     pendingSave: false,
     empty: true,
 
     get commands() {
       return commands;
-    },
-
-    setTool: function(value) {
-      if (this.tool !== value) {
-        this.tool = value;
-        this._updateHoverover();
-      }
     },
 
     setColor: function(value) {
@@ -684,65 +656,62 @@ module.exports = function(game, input, camera) {
     _updateInput: function() {
       var inputState = input.state;
 
-      if (inputState.mousedown(0)) {
-        mousehold = true;
-        lastMousedown = new Date().getTime();
-      }
+      var space = inputState.keyhold('space');
+      // var mousehold = inputState.mousehold(0) && !space;
+      // var mousehold2 = inputState.mousehold(2) && !space;
 
-      var mouseclick = false;
-      if (inputState.mouseup(0)) {
-        mousehold = false;
-        lastCoord = null;
-        var diff = new Date().getTime() - lastMousedown;
-        if (diff < this.clickTime) {
-          mouseclick = true;
+      if (inputState.mouseclick(0)) {
+        var coordToUse = coordAbove || coord;
+        if (!!coordToUse) {
+          var command = setCommand(this.blockModel, coordToUse, {
+            color: this.color
+          });
+          this._runCommand(command);
         }
-      }
-
-      if (inputState.mouseenter || inputState.mouseleave) {
-        mousehold = false;
-        lastCoord = null;
+      } else if (inputState.mouseclick(2)) {
+        if (!!coordChunk) {
+          var command = setCommand(this.blockModel, coordChunk, null, undefined);
+          this._runCommand(command);
+        }
       }
 
       //update add block
-      if (this.mode === 'grid') {
-        if (this.tool === 'add') {
-          if (mousehold && coord !== null) {
-            //if no last coord, or last coord is different from coord
-            if (!lastCoord || !lastCoord.equals(coord)) {
-              var command = setCommand(this.blockModel, coord, {
-                color: this.color
-              });
-              this._runCommand(command);
-              lastCoord = coord.clone();
-            }
-          }
-        } else if (this.tool === 'remove') {
-          if (mousehold && coordChunk !== null) {
-            var command = setCommand(this.blockModel, coordChunk, null, undefined);
-            this._runCommand(command);
-          }
-        }
+      // if (this.mode === 'grid') {
+      //   // if (this.tool === 'add') {
+      //   if (mousehold && coord !== null) {
+      //     //if no last coord, or last coord is different from coord
+      //     if (!lastCoord || !lastCoord.equals(coord)) {
 
-        if (inputState.keydown('g')) {
-          //toggle grid
-          this.grid.setVisible(!this.grid.visible);
-        }
-      } else if (this.mode === 'firstPerson') {
-        if (this.tool === 'add') {
-          if (mouseclick && coord !== null) {
-            var command = setCommand(this.blockModel, coord, {
-              color: this.color
-            });
-            this._runCommand(command);
-          }
-        } else if (this.tool === 'remove') {
-          if (mouseclick && coordChunk !== null) {
-            var command = setCommand(this.blockModel, coordChunk, null, undefined);
-            this._runCommand(command);
-          }
-        }
-      }
+      //       lastCoord = coord.clone();
+      //     }
+      //   }
+      //   // } else if (this.tool === 'remove') {
+      //   else if (mousehold2 && coordChunk !== null) {
+
+      //   }
+      //   // }
+
+      //   if (inputState.keydown('g')) {
+      //     //toggle grid
+      //     this.grid.setVisible(!this.grid.visible);
+      //   }
+      // }
+
+      // else if (this.mode === 'firstPerson') {
+      //   if (this.tool === 'add') {
+      //     if (mouseclick && coord !== null) {
+      //       var command = setCommand(this.blockModel, coord, {
+      //         color: this.color
+      //       });
+      //       this._runCommand(command);
+      //     }
+      //   } else if (this.tool === 'remove') {
+      //     if (mouseclick && coordChunk !== null) {
+      //       var command = setCommand(this.blockModel, coordChunk, null, undefined);
+      //       this._runCommand(command);
+      //     }
+      //   }
+      // }
 
       //update mode
       if (inputState.keydown('f')) {
@@ -757,7 +726,8 @@ module.exports = function(game, input, camera) {
     },
 
     _updateHoveroverPosition: function() {
-      var coordToUse = this.tool === 'add' ? coord : coordChunk;
+      // var coordToUse = this.tool === 'add' ? coord : coordChunk;
+      var coordToUse = coordAbove || coord;
 
       if (coordToUse === null) {
         hoverover.visible = false;
@@ -801,17 +771,27 @@ module.exports = function(game, input, camera) {
       var intersects = raycaster.intersectObject(this.blockModel.obj, true);
       if (intersects.length === 0) {
         coordChunk = null;
+        coordAbove = null;
         return;
       }
 
       var point = intersects[0].point;
-      var position = point.clone().sub(camera.position);
-      position.setLength(position.length() + 0.01).add(camera.position);
+      var diff = point.clone().sub(camera.position);
+
+      var position = diff.clone().setLength(diff.length() + 0.01).add(camera.position);
       position.multiplyScalar(1 / this.gridSize);
       coordChunk = new THREE.Vector3(
         Math.round(position.x - 0.5),
         Math.round(position.y - 0.5),
         Math.round(position.z - 0.5));
+
+      var positionAbove = diff.clone().setLength(diff.length() - 0.01).add(camera.position);
+      positionAbove.multiplyScalar(1 / this.gridSize);
+
+      coordAbove = new THREE.Vector3(
+        Math.round(positionAbove.x - 0.5),
+        Math.round(positionAbove.y - 0.5),
+        Math.round(positionAbove.z - 0.5));
     },
 
     _updateHoverover: function() {
@@ -822,12 +802,7 @@ module.exports = function(game, input, camera) {
       var geometry = new THREE.BoxGeometry(this.gridSize, this.gridSize, this.gridSize);
       var cube = new THREE.Mesh(geometry);
 
-      var hoveroverColor;
-      if (this.tool === 'add') {
-        hoveroverColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
-      } else {
-        hoveroverColor = 0x000000;
-      }
+      var hoveroverColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
 
       var edges = new THREE.EdgesHelper(cube, hoveroverColor);
       toDispose(edges.geometry);
@@ -1281,7 +1256,10 @@ module.exports = Engine;
 var keycode = require('keycode');
 var _ = require('lodash');
 
-module.exports = function(game) {
+module.exports = function(game, element) {
+  var clickTime = 150;
+  element = element || window;
+
   var listeners = {
     mousemove: function(e) {
       if (game.pausing) return;
@@ -1292,23 +1270,37 @@ module.exports = function(game) {
     mousedown: function(e) {
       if (game.pausing) return;
       state.mousedowns.push(e.button);
+      if (!_.includes(state.mouseholds, e.button)) {
+        state.mouseholds.push(e.button);
+      }
+      state.mousedownTimes[e.button] = new Date().getTime();
     },
 
     mouseup: function(e) {
       if (game.pausing) return;
       state.mouseups.push(e.button);
+      _.pull(state.mouseholds, e.button);
+      var mousedownTime = state.mousedownTimes[e.button];
+      var diff = new Date().getTime() - mousedownTime;
+      if (diff < clickTime) {
+        state.mouseclicks.push(e.button);
+      }
     },
 
     mouseenter: function() {
       if (game.pausing) return;
       state.mouseenter = true;
       state.keyholds = [];
+      state.mouseholds = [];
+      state.mouseclicks = [];
     },
 
     mouseleave: function() {
       if (game.pausing) return;
       state.mouseleave = true;
       state.keyholds = [];
+      state.mouseholds = [];
+      state.mouseclicks = [];
     },
 
     keydown: function(e) {
@@ -1328,38 +1320,58 @@ module.exports = function(game) {
     }
   };
 
-  var state = {
-    keydowns: [],
-    keyups: [],
-    keyholds: [],
-    mouseX: 0,
-    mouseY: 0,
-    mousedowns: [],
-    mouseups: [],
-    mouseenter: false,
-    mouseleave: false,
-    keydown: function(key) {
-      return _.includes(this.keydowns, key);
-    },
-    keyup: function(key) {
-      return _.includes(this.keyups, key);
-    },
-    keyhold: function(key) {
-      return _.includes(this.keyholds, key);
-    },
-    mousedown: function(button) {
-      if (button === undefined) {
-        return this.mousedowns.length > 0;
+  var createState = function() {
+    return {
+      keydowns: [],
+      keyups: [],
+      keyholds: [],
+      mouseX: 0,
+      mouseY: 0,
+      mousedowns: [],
+      mouseclicks: [],
+      mouseups: [],
+      mouseholds: [],
+      mouseenter: false,
+      mouseleave: false,
+      mousedownTimes: {},
+
+      keydown: function(key) {
+        return _.includes(this.keydowns, key);
+      },
+      keyup: function(key) {
+        return _.includes(this.keyups, key);
+      },
+      keyhold: function(key) {
+        return _.includes(this.keyholds, key);
+      },
+      mousedown: function(button) {
+        if (button === undefined) {
+          return this.mousedowns.length > 0;
+        }
+        return _.includes(this.mousedowns, button);
+      },
+      mouseup: function(button) {
+        if (button === undefined) {
+          return this.mouseups.length > 0;
+        }
+        return _.includes(this.mouseups, button);
+      },
+      mouseclick: function(button) {
+        if (button === undefined) {
+          return this.mouseclicks.length > 0;
+        }
+        return _.includes(this.mouseclicks, button);
+      },
+      mousehold: function(button) {
+        if (button === undefined) {
+          return this.mouseholds.length > 0;
+        }
+        return _.includes(this.mouseholds, button);
       }
-      return _.includes(this.mousedowns, button);
-    },
-    mouseup: function(button) {
-      if (button === undefined) {
-        return this.mouseups.length > 0;
-      }
-      return _.includes(this.mouseups, button);
-    }
+    };
   };
+
+  var state = createState();
 
   var clearTemporalStates = function() {
     state.keydowns = [];
@@ -1368,36 +1380,51 @@ module.exports = function(game) {
     state.mouseups = [];
     state.mouseenter = false;
     state.mouseleave = false;
+    state.mouseclicks = [];
+  };
+
+  var resetState = function() {
+    state = createState();
   };
 
   return {
     start: function() {
-      window.addEventListener('mousemove', listeners['mousemove']);
-      window.addEventListener('mousedown', listeners['mousedown']);
-      window.addEventListener('mouseup', listeners['mouseup']);
-      window.addEventListener('mouseenter', listeners['mouseenter']);
-      window.addEventListener('mouseleave', listeners['mouseleave']);
-      window.addEventListener('keydown', listeners['keydown']);
-      window.addEventListener('keyup', listeners['keyup']);
+      element.addEventListener('mousemove', listeners['mousemove']);
+      element.addEventListener('mousedown', listeners['mousedown']);
+      element.addEventListener('mouseup', listeners['mouseup']);
+      element.addEventListener('mouseenter', listeners['mouseenter']);
+      element.addEventListener('mouseleave', listeners['mouseleave']);
+      element.addEventListener('keydown', listeners['keydown']);
+      element.addEventListener('keyup', listeners['keyup']);
       game.on('pause', function() {
-        clearTemporalStates();
+        resetState();
       });
     },
 
-    state: state,
+    get clickTime() {
+      return clickTime;
+    },
+
+    setClickTime: function(value) {
+      clickTime = value;
+    },
+
+    get state() {
+      return state;
+    },
 
     lateTick: function() {
       clearTemporalStates();
     },
 
     dispose: function() {
-      window.removeEventListener('mousemove', listeners['mousemove']);
-      window.removeEventListener('mousedown', listeners['mousedown']);
-      window.removeEventListener('mouseup', listeners['mouseup']);
-      window.removeEventListener('mouseenter', listeners['mouseenter']);
-      window.removeEventListener('mouseleave', listeners['mouseleave']);
-      window.removeEventListener('keydown', listeners['keydown']);
-      window.removeEventListener('keyup', listeners['keyup']);
+      element.removeEventListener('mousemove', listeners['mousemove']);
+      element.removeEventListener('mousedown', listeners['mousedown']);
+      element.removeEventListener('mouseup', listeners['mouseup']);
+      element.removeEventListener('mouseenter', listeners['mouseenter']);
+      element.removeEventListener('mouseleave', listeners['mouseleave']);
+      element.removeEventListener('keydown', listeners['keydown']);
+      element.removeEventListener('keyup', listeners['keyup']);
     }
   };
 };
@@ -1459,11 +1486,12 @@ var cpr = function(options) {
 
   root.append(input);
 
-  $(document).on('click', '.cpr-container .cpr-block', function() {
+  $(document).on('click', '.cpr-container .cpr-block', function(event) {
     var color = $(this).css('background-color');
     if (options.click !== undefined) {
       options.click(tinycolor(color));
     }
+    event.stopPropagation();
   });
 
   input.focus(function() {
@@ -24778,7 +24806,8 @@ module.exports = [
   'rgb(224,218,215)',
   'rgb(98,149,195)',
   'rgb(32,164,72)',
-  'rgb(234,31,35)'
+  'rgb(234,31,35)',
+  'rgb(191,55,50)'
 ];
 },{}],19:[function(require,module,exports){
 module.exports = require('./monotone').mesher;

@@ -1,7 +1,10 @@
 var keycode = require('keycode');
 var _ = require('lodash');
 
-module.exports = function(game) {
+module.exports = function(game, element) {
+  var clickTime = 150;
+  element = element || window;
+
   var listeners = {
     mousemove: function(e) {
       if (game.pausing) return;
@@ -12,23 +15,37 @@ module.exports = function(game) {
     mousedown: function(e) {
       if (game.pausing) return;
       state.mousedowns.push(e.button);
+      if (!_.includes(state.mouseholds, e.button)) {
+        state.mouseholds.push(e.button);
+      }
+      state.mousedownTimes[e.button] = new Date().getTime();
     },
 
     mouseup: function(e) {
       if (game.pausing) return;
       state.mouseups.push(e.button);
+      _.pull(state.mouseholds, e.button);
+      var mousedownTime = state.mousedownTimes[e.button];
+      var diff = new Date().getTime() - mousedownTime;
+      if (diff < clickTime) {
+        state.mouseclicks.push(e.button);
+      }
     },
 
     mouseenter: function() {
       if (game.pausing) return;
       state.mouseenter = true;
       state.keyholds = [];
+      state.mouseholds = [];
+      state.mouseclicks = [];
     },
 
     mouseleave: function() {
       if (game.pausing) return;
       state.mouseleave = true;
       state.keyholds = [];
+      state.mouseholds = [];
+      state.mouseclicks = [];
     },
 
     keydown: function(e) {
@@ -48,38 +65,58 @@ module.exports = function(game) {
     }
   };
 
-  var state = {
-    keydowns: [],
-    keyups: [],
-    keyholds: [],
-    mouseX: 0,
-    mouseY: 0,
-    mousedowns: [],
-    mouseups: [],
-    mouseenter: false,
-    mouseleave: false,
-    keydown: function(key) {
-      return _.includes(this.keydowns, key);
-    },
-    keyup: function(key) {
-      return _.includes(this.keyups, key);
-    },
-    keyhold: function(key) {
-      return _.includes(this.keyholds, key);
-    },
-    mousedown: function(button) {
-      if (button === undefined) {
-        return this.mousedowns.length > 0;
+  var createState = function() {
+    return {
+      keydowns: [],
+      keyups: [],
+      keyholds: [],
+      mouseX: 0,
+      mouseY: 0,
+      mousedowns: [],
+      mouseclicks: [],
+      mouseups: [],
+      mouseholds: [],
+      mouseenter: false,
+      mouseleave: false,
+      mousedownTimes: {},
+
+      keydown: function(key) {
+        return _.includes(this.keydowns, key);
+      },
+      keyup: function(key) {
+        return _.includes(this.keyups, key);
+      },
+      keyhold: function(key) {
+        return _.includes(this.keyholds, key);
+      },
+      mousedown: function(button) {
+        if (button === undefined) {
+          return this.mousedowns.length > 0;
+        }
+        return _.includes(this.mousedowns, button);
+      },
+      mouseup: function(button) {
+        if (button === undefined) {
+          return this.mouseups.length > 0;
+        }
+        return _.includes(this.mouseups, button);
+      },
+      mouseclick: function(button) {
+        if (button === undefined) {
+          return this.mouseclicks.length > 0;
+        }
+        return _.includes(this.mouseclicks, button);
+      },
+      mousehold: function(button) {
+        if (button === undefined) {
+          return this.mouseholds.length > 0;
+        }
+        return _.includes(this.mouseholds, button);
       }
-      return _.includes(this.mousedowns, button);
-    },
-    mouseup: function(button) {
-      if (button === undefined) {
-        return this.mouseups.length > 0;
-      }
-      return _.includes(this.mouseups, button);
-    }
+    };
   };
+
+  var state = createState();
 
   var clearTemporalStates = function() {
     state.keydowns = [];
@@ -88,36 +125,51 @@ module.exports = function(game) {
     state.mouseups = [];
     state.mouseenter = false;
     state.mouseleave = false;
+    state.mouseclicks = [];
+  };
+
+  var resetState = function() {
+    state = createState();
   };
 
   return {
     start: function() {
-      window.addEventListener('mousemove', listeners['mousemove']);
-      window.addEventListener('mousedown', listeners['mousedown']);
-      window.addEventListener('mouseup', listeners['mouseup']);
-      window.addEventListener('mouseenter', listeners['mouseenter']);
-      window.addEventListener('mouseleave', listeners['mouseleave']);
-      window.addEventListener('keydown', listeners['keydown']);
-      window.addEventListener('keyup', listeners['keyup']);
+      element.addEventListener('mousemove', listeners['mousemove']);
+      element.addEventListener('mousedown', listeners['mousedown']);
+      element.addEventListener('mouseup', listeners['mouseup']);
+      element.addEventListener('mouseenter', listeners['mouseenter']);
+      element.addEventListener('mouseleave', listeners['mouseleave']);
+      element.addEventListener('keydown', listeners['keydown']);
+      element.addEventListener('keyup', listeners['keyup']);
       game.on('pause', function() {
-        clearTemporalStates();
+        resetState();
       });
     },
 
-    state: state,
+    get clickTime() {
+      return clickTime;
+    },
+
+    setClickTime: function(value) {
+      clickTime = value;
+    },
+
+    get state() {
+      return state;
+    },
 
     lateTick: function() {
       clearTemporalStates();
     },
 
     dispose: function() {
-      window.removeEventListener('mousemove', listeners['mousemove']);
-      window.removeEventListener('mousedown', listeners['mousedown']);
-      window.removeEventListener('mouseup', listeners['mouseup']);
-      window.removeEventListener('mouseenter', listeners['mouseenter']);
-      window.removeEventListener('mouseleave', listeners['mouseleave']);
-      window.removeEventListener('keydown', listeners['keydown']);
-      window.removeEventListener('keyup', listeners['keyup']);
+      element.removeEventListener('mousemove', listeners['mousemove']);
+      element.removeEventListener('mousedown', listeners['mousedown']);
+      element.removeEventListener('mouseup', listeners['mouseup']);
+      element.removeEventListener('mouseenter', listeners['mouseenter']);
+      element.removeEventListener('mouseleave', listeners['mouseleave']);
+      element.removeEventListener('keydown', listeners['keydown']);
+      element.removeEventListener('keyup', listeners['keyup']);
     }
   };
 };

@@ -55,11 +55,12 @@ var cpr = function(options) {
 
   root.append(input);
 
-  $(document).on('click', '.cpr-container .cpr-block', function() {
+  $(document).on('click', '.cpr-container .cpr-block', function(event) {
     var color = $(this).css('background-color');
     if (options.click !== undefined) {
       options.click(tinycolor(color));
     }
+    event.stopPropagation();
   });
 
   input.focus(function() {

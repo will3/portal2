@@ -22,9 +22,9 @@ module.exports = function(game, input, camera) {
 
   var coord = null;
   var coordChunk = null;
+  var coordAbove = null;
   var hoverover = null;
   var objBlockModel = new THREE.Object3D();
-  var mousehold = false;
   var lastCoord = null;
   var cameraComponent = null;
   var lastMousedown = 0;
@@ -47,19 +47,11 @@ module.exports = function(game, input, camera) {
     color: 0x000000,
     clickTime: 200,
     mode: 'grid',
-    tool: 'add',
     pendingSave: false,
     empty: true,
 
     get commands() {
       return commands;
-    },
-
-    setTool: function(value) {
-      if (this.tool !== value) {
-        this.tool = value;
-        this._updateHoverover();
-      }
     },
 
     setColor: function(value) {
@@ -149,65 +141,62 @@ module.exports = function(game, input, camera) {
     _updateInput: function() {
       var inputState = input.state;
 
-      if (inputState.mousedown(0)) {
-        mousehold = true;
-        lastMousedown = new Date().getTime();
-      }
+      var space = inputState.keyhold('space');
+      // var mousehold = inputState.mousehold(0) && !space;
+      // var mousehold2 = inputState.mousehold(2) && !space;
 
-      var mouseclick = false;
-      if (inputState.mouseup(0)) {
-        mousehold = false;
-        lastCoord = null;
-        var diff = new Date().getTime() - lastMousedown;
-        if (diff < this.clickTime) {
-          mouseclick = true;
+      if (inputState.mouseclick(0)) {
+        var coordToUse = coordAbove || coord;
+        if (!!coordToUse) {
+          var command = setCommand(this.blockModel, coordToUse, {
+            color: this.color
+          });
+          this._runCommand(command);
         }
-      }
-
-      if (inputState.mouseenter || inputState.mouseleave) {
-        mousehold = false;
-        lastCoord = null;
+      } else if (inputState.mouseclick(2)) {
+        if (!!coordChunk) {
+          var command = setCommand(this.blockModel, coordChunk, null, undefined);
+          this._runCommand(command);
+        }
       }
 
       //update add block
-      if (this.mode === 'grid') {
-        if (this.tool === 'add') {
-          if (mousehold && coord !== null) {
-            //if no last coord, or last coord is different from coord
-            if (!lastCoord || !lastCoord.equals(coord)) {
-              var command = setCommand(this.blockModel, coord, {
-                color: this.color
-              });
-              this._runCommand(command);
-              lastCoord = coord.clone();
-            }
-          }
-        } else if (this.tool === 'remove') {
-          if (mousehold && coordChunk !== null) {
-            var command = setCommand(this.blockModel, coordChunk, null, undefined);
-            this._runCommand(command);
-          }
-        }
+      // if (this.mode === 'grid') {
+      //   // if (this.tool === 'add') {
+      //   if (mousehold && coord !== null) {
+      //     //if no last coord, or last coord is different from coord
+      //     if (!lastCoord || !lastCoord.equals(coord)) {
 
-        if (inputState.keydown('g')) {
-          //toggle grid
-          this.grid.setVisible(!this.grid.visible);
-        }
-      } else if (this.mode === 'firstPerson') {
-        if (this.tool === 'add') {
-          if (mouseclick && coord !== null) {
-            var command = setCommand(this.blockModel, coord, {
-              color: this.color
-            });
-            this._runCommand(command);
-          }
-        } else if (this.tool === 'remove') {
-          if (mouseclick && coordChunk !== null) {
-            var command = setCommand(this.blockModel, coordChunk, null, undefined);
-            this._runCommand(command);
-          }
-        }
-      }
+      //       lastCoord = coord.clone();
+      //     }
+      //   }
+      //   // } else if (this.tool === 'remove') {
+      //   else if (mousehold2 && coordChunk !== null) {
+
+      //   }
+      //   // }
+
+      //   if (inputState.keydown('g')) {
+      //     //toggle grid
+      //     this.grid.setVisible(!this.grid.visible);
+      //   }
+      // }
+
+      // else if (this.mode === 'firstPerson') {
+      //   if (this.tool === 'add') {
+      //     if (mouseclick && coord !== null) {
+      //       var command = setCommand(this.blockModel, coord, {
+      //         color: this.color
+      //       });
+      //       this._runCommand(command);
+      //     }
+      //   } else if (this.tool === 'remove') {
+      //     if (mouseclick && coordChunk !== null) {
+      //       var command = setCommand(this.blockModel, coordChunk, null, undefined);
+      //       this._runCommand(command);
+      //     }
+      //   }
+      // }
 
       //update mode
       if (inputState.keydown('f')) {
@@ -222,7 +211,8 @@ module.exports = function(game, input, camera) {
     },
 
     _updateHoveroverPosition: function() {
-      var coordToUse = this.tool === 'add' ? coord : coordChunk;
+      // var coordToUse = this.tool === 'add' ? coord : coordChunk;
+      var coordToUse = coordAbove || coord;
 
       if (coordToUse === null) {
         hoverover.visible = false;
@@ -266,17 +256,27 @@ module.exports = function(game, input, camera) {
       var intersects = raycaster.intersectObject(this.blockModel.obj, true);
       if (intersects.length === 0) {
         coordChunk = null;
+        coordAbove = null;
         return;
       }
 
       var point = intersects[0].point;
-      var position = point.clone().sub(camera.position);
-      position.setLength(position.length() + 0.01).add(camera.position);
+      var diff = point.clone().sub(camera.position);
+
+      var position = diff.clone().setLength(diff.length() + 0.01).add(camera.position);
       position.multiplyScalar(1 / this.gridSize);
       coordChunk = new THREE.Vector3(
         Math.round(position.x - 0.5),
         Math.round(position.y - 0.5),
         Math.round(position.z - 0.5));
+
+      var positionAbove = diff.clone().setLength(diff.length() - 0.01).add(camera.position);
+      positionAbove.multiplyScalar(1 / this.gridSize);
+
+      coordAbove = new THREE.Vector3(
+        Math.round(positionAbove.x - 0.5),
+        Math.round(positionAbove.y - 0.5),
+        Math.round(positionAbove.z - 0.5));
     },
 
     _updateHoverover: function() {
@@ -287,12 +287,7 @@ module.exports = function(game, input, camera) {
       var geometry = new THREE.BoxGeometry(this.gridSize, this.gridSize, this.gridSize);
       var cube = new THREE.Mesh(geometry);
 
-      var hoveroverColor;
-      if (this.tool === 'add') {
-        hoveroverColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
-      } else {
-        hoveroverColor = 0x000000;
-      }
+      var hoveroverColor = new THREE.Color(this.color).offsetHSL(0, 0, -0.3).getHex();
 
       var edges = new THREE.EdgesHelper(cube, hoveroverColor);
       toDispose(edges.geometry);
