@@ -59,6 +59,8 @@ module.exports = function(game, input, camera) {
       game.dettach(objBlockModel, this.blockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
       this.blockModel.gridSize = this.gridSize;
+      this.blockModel.castShadow = true;
+      this.blockModel.receiveShadow = true;
     },
 
     setColor: function(value) {
@@ -99,6 +101,8 @@ module.exports = function(game, input, camera) {
       this.object.add(objBlockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
       this.blockModel.gridSize = this.gridSize;
+      this.blockModel.castShadow = true;
+      this.blockModel.receiveShadow = true;
 
       this.object.add(objGround);
       ground = game.attach(objGround, 'ground');

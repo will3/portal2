@@ -25,7 +25,12 @@ function init() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
-  // renderer.shadowMapType = THREE.PCFSoftShadowMap;
+  renderer.shadowMapEnabled = true;
+  // renderer.shadowMapType = THREE.BasicShadowMap;
+  renderer.shadowMapCullFace = THREE.CullFaceBack;
+  // renderer.shadowMapCullFace = THREE.CullFaceFront;
+
+  renderer.shadowMapType = THREE.PCFShadowMap;
   document.body.appendChild(renderer.domElement);
 
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
@@ -33,9 +38,24 @@ function init() {
 
   var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
   directionalLight.position.set(0.5, 1.0, 0.8);
-  // directionalLight.castShadow = true;
-  // directionalLight.shadowDarkness = 0.5;
+
+  directionalLight.shadowCameraNear = -100;
+  directionalLight.shadowCameraFar = 100;
+
+  directionalLight.shadowMapWidth = 1024;
+  directionalLight.shadowMapHeight = 1024;
+
+  // directionalLight.shadowCameraNear = 200;
+  // directionalLight.shadowCameraFar = 4000;
+  // directionalLight.shadowCameraFov = 30;
+
+  directionalLight.shadowBias = -0.0001;
+  // directionalLight.shadowCameraVisible = true;
+
+  directionalLight.castShadow = true;
+  directionalLight.shadowDarkness = 0.2;
   scene.add(directionalLight);
+
 
   // //depth
   // var depthShader = THREE.ShaderLib["depthRGBA"];
@@ -257,8 +277,6 @@ if (user === 'gallery') {
   }
 
   var gallery = [
-    'biome.vox',
-    'box.vox',
     'chr_fox.vox',
     'chr_gumi.vox',
     'chr_jp.vox',
@@ -267,6 +285,8 @@ if (user === 'gallery') {
     'chr_old.vox',
     'chr_rain.vox',
     'chr_sword.vox',
+    'biome.vox',
+    'box.vox',
     'church.vox',
     'colors.vox',
     'ephtracy.vox',
@@ -24756,6 +24776,8 @@ module.exports = function() {
     size: 16,
     gridSize: 2,
     obj: null,
+    castShadow: false,
+    receiveShadow: false,
 
     getChunk: function(x, y, z, query) {
       query = query || false;
@@ -24923,8 +24945,8 @@ module.exports = function() {
       });
 
       mesh = new THREE.Mesh(geometry, material);
-      // mesh.castShadow = true;
-      // mesh.receiveShadow = true;
+      mesh.castShadow = this.castShadow;
+      mesh.receiveShadow = this.receiveShadow;
       chunk.mesh = mesh;
 
       var origin = chunk.origin.clone();
@@ -25130,6 +25152,8 @@ module.exports = function(game, input, camera) {
       game.dettach(objBlockModel, this.blockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
       this.blockModel.gridSize = this.gridSize;
+      this.blockModel.castShadow = true;
+      this.blockModel.receiveShadow = true;
     },
 
     setColor: function(value) {
@@ -25170,6 +25194,8 @@ module.exports = function(game, input, camera) {
       this.object.add(objBlockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
       this.blockModel.gridSize = this.gridSize;
+      this.blockModel.castShadow = true;
+      this.blockModel.receiveShadow = true;
 
       this.object.add(objGround);
       ground = game.attach(objGround, 'ground');
@@ -25561,7 +25587,7 @@ module.exports = function(game) {
   var obj = new THREE.Object3D();
   var blockModel;
   return {
-    size: 128,
+    size: 32,
     y: 0,
     visible: true,
 
@@ -25569,6 +25595,7 @@ module.exports = function(game) {
       var halfsize = this.size / 2;
       this.object.add(obj);
       blockModel = game.attach(obj, 'blockModel');
+      blockModel.receiveShadow = true;
       for (var x = -halfsize; x < halfsize; x++) {
         for (var z = -halfsize; z < halfsize; z++) {
           blockModel.set(x, this.y - 1, z, {

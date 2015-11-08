@@ -23,7 +23,12 @@ function init() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
-  // renderer.shadowMapType = THREE.PCFSoftShadowMap;
+  renderer.shadowMapEnabled = true;
+  // renderer.shadowMapType = THREE.BasicShadowMap;
+  renderer.shadowMapCullFace = THREE.CullFaceBack;
+  // renderer.shadowMapCullFace = THREE.CullFaceFront;
+
+  renderer.shadowMapType = THREE.PCFShadowMap;
   document.body.appendChild(renderer.domElement);
 
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
@@ -31,9 +36,24 @@ function init() {
 
   var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
   directionalLight.position.set(0.5, 1.0, 0.8);
-  // directionalLight.castShadow = true;
-  // directionalLight.shadowDarkness = 0.5;
+
+  directionalLight.shadowCameraNear = -100;
+  directionalLight.shadowCameraFar = 100;
+
+  directionalLight.shadowMapWidth = 1024;
+  directionalLight.shadowMapHeight = 1024;
+
+  // directionalLight.shadowCameraNear = 200;
+  // directionalLight.shadowCameraFar = 4000;
+  // directionalLight.shadowCameraFov = 30;
+
+  directionalLight.shadowBias = -0.0001;
+  // directionalLight.shadowCameraVisible = true;
+
+  directionalLight.castShadow = true;
+  directionalLight.shadowDarkness = 0.2;
   scene.add(directionalLight);
+
 
   // //depth
   // var depthShader = THREE.ShaderLib["depthRGBA"];
@@ -255,8 +275,6 @@ if (user === 'gallery') {
   }
 
   var gallery = [
-    'biome.vox',
-    'box.vox',
     'chr_fox.vox',
     'chr_gumi.vox',
     'chr_jp.vox',
@@ -265,6 +283,8 @@ if (user === 'gallery') {
     'chr_old.vox',
     'chr_rain.vox',
     'chr_sword.vox',
+    'biome.vox',
+    'box.vox',
     'church.vox',
     'colors.vox',
     'ephtracy.vox',

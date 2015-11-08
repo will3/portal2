@@ -14,6 +14,8 @@ module.exports = function() {
     size: 16,
     gridSize: 2,
     obj: null,
+    castShadow: false,
+    receiveShadow: false,
 
     getChunk: function(x, y, z, query) {
       query = query || false;
@@ -181,8 +183,8 @@ module.exports = function() {
       });
 
       mesh = new THREE.Mesh(geometry, material);
-      // mesh.castShadow = true;
-      // mesh.receiveShadow = true;
+      mesh.castShadow = this.castShadow;
+      mesh.receiveShadow = this.receiveShadow;
       chunk.mesh = mesh;
 
       var origin = chunk.origin.clone();
