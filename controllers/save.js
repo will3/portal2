@@ -17,12 +17,15 @@ module.exports = function(req, res) {
     throw new Error('invalid name: ' + name);
   }
 
+  //add default extension
+  name += '.br';
+
   var basePath = libPath.join(__dirname, '../.store');
   var path = libPath.join(basePath, escape(user), escape(name));
 
   mkdirp(path, function(err) {
     if (err) throw err;
-    fs.writeFile(libPath.join(path, 'data'), data, function(err) {
+    fs.writeFile(path, data, function(err) {
       if (err) throw err;
       res.end('OK');
     });

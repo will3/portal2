@@ -20,6 +20,11 @@ nav > a {
     margin-right: 20px;
 }
 
+#fileinput {
+    position: absolute;
+    top: -100px;
+}
+
 i:hover {
     color: #ccc
 }
@@ -65,4 +70,34 @@ p {
     margin: 0;
     font-family: 'Source Sans Pro', sans-serif;
     color: #333333;
+}
+
+#left {
+    position: absolute;
+    margin: auto;
+    left: 20px;
+    width: 42px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#left > img {
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#right {
+    position: absolute;
+    margin: auto;
+    right: 20px;
+    width: 42px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#right > img {
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
 }

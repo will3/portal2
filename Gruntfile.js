@@ -13,7 +13,8 @@ module.exports = function(grunt) {
             'bower_components/jquery/dist/jquery.min.js',
             'bower_components/lodash/lodash.min.js',
             'bower_components/vex/js/*.js',
-            'bundle.js'
+            'bundle.js',
+            'vendor/*.js'
           ],
           dest: 'public/js'
         }, {
@@ -36,6 +37,11 @@ module.exports = function(grunt) {
           flatten: true,
           src: ['images/*'],
           dest: 'public/images'
+        }, {
+          expand: true,
+          flatten: true,
+          src: ['vox/*'],
+          dest: 'public/vox'
         }]
       }
     },

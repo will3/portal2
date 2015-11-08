@@ -6,13 +6,6 @@
     <link rel="stylesheet" type="text/css" href="/css/cpr.css"></link>
     <link rel="stylesheet" type="text/css" href="/css/font-awesome.min.css"></link>
     <script src="/js/jquery.min.js"></script>
-    <script src="/js/vex.js"></script>
-    <script src="/js/vex.dialog.js"></script>
-    <script>
-    vex.defaultOptions.className = 'vex-theme-os';
-    </script>
-    <link rel="stylesheet" type="text/css" href="/css/vex.css"></link>
-    <link rel="stylesheet" type="text/css" href="/css/vex-theme-os.css"></link>
     <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro' rel='stylesheet' type='text/css'>
 </head>
 
@@ -21,21 +14,18 @@
     <nav>
         <img class="unselectable" src="/images/favicon42.png"></img>
         <a id="link-share" class="unselectable"><i class="fa fa-floppy-o"></i></a>
+        <a id="link-open" class="unselectable"><i class="fa fa-folder-open"></i></a>
         <a id="link-redo" class="unselectable"><i class="fa fa-share"></i></a>
         <a id="link-undo" class="unselectable"><i class="fa fa-reply"></i></a>
-        <a id="link-new" class="unselectable"><i class="fa fa-file-o"></i></a>
+        <input type="file" id="fileinput"/>
     </nav>
-    
-    <!--<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-    <script src="http://mrdoob.github.com/three.js/build/three.min.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/shaders/CopyShader.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/shaders/SSAOShader.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/MaskPass.js"></script>
-    <script src="http://mrdoob.github.com/three.js/examples/js/postprocessing/ShaderPass.js"></script>-->
+
+    <div id="right"><img src="/images/right.png"></img></div>
+    <div id="left"><img src="/images/left.png"></img></div>
+
     <script src="/js/three.min.js"></script>
     <script src="/js/lodash.min.js"></script>
+    <script src="/js/FileSaver.min.js"></script>
     <script src="/js/bundle.js"></script>
 </body>
 

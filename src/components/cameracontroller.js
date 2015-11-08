@@ -3,17 +3,18 @@ var THREE = require('three');
 module.exports = function(input) {
   var lastX = 0;
   var lastY = 0;
-  var rotation = new THREE.Euler(Math.PI / 2 - 0.1, 0, 0, 'YXZ');
+  var rotation = new THREE.Euler(Math.PI / 4, Math.PI / 4, 0, 'YXZ');
 
   return {
     xSpeed: 0.01,
     ySpeed: 0.01,
     target: new THREE.Vector3(),
-    distance: 50,
+    distance: 100,
     zoomRate: 1.1,
     minZoom: 0.25,
-    maxZoom: 4,
+    maxZoom: 16,
     zoomScale: 1,
+    moveSpeed: 2,
 
     start: function() {
       this.updatePosition();
@@ -57,6 +58,36 @@ module.exports = function(input) {
 
       if (inputState.keydown('=')) {
         this.zoomScale /= this.zoomRate;
+      }
+
+      var up = new THREE.Vector3(0, 1, 0);
+      var camera = this.object;
+      var front = new THREE.Vector3().subVectors(this.target, camera.position);
+      front.y = 0;
+      var right = front.clone().cross(up);
+
+      if (inputState.keyhold('a')) {
+        this.target.add(right.clone().setLength(-this.moveSpeed));
+      }
+
+      if (inputState.keyhold('d')) {
+        this.target.add(right.clone().setLength(this.moveSpeed));
+      }
+
+      if (inputState.keyhold('w')) {
+        this.target.add(front.clone().setLength(this.moveSpeed));
+      }
+
+      if (inputState.keyhold('s')) {
+        this.target.add(front.clone().setLength(-this.moveSpeed));
+      }
+
+      if (inputState.keyhold('q')) {
+        this.target.add(up.clone().setLength(-this.moveSpeed));
+      }
+
+      if (inputState.keyhold('e')) {
+        this.target.add(up.clone().setLength(this.moveSpeed));
       }
 
       if (this.zoomScale < this.minZoom) {

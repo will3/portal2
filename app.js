@@ -1,7 +1,8 @@
 var THREE = require('three');
 var $ = require('jquery');
+var _ = require('lodash');
 
-var brock = require('./core/engine');
+var brock = require('./src/core/engine');
 var engine = brock();
 var cpr = require('./cpr/cpr.js');
 
@@ -22,7 +23,7 @@ function init() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
-  renderer.shadowMapType = THREE.PCFSoftShadowMap;
+  // renderer.shadowMapType = THREE.PCFSoftShadowMap;
   document.body.appendChild(renderer.domElement);
 
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
@@ -87,15 +88,17 @@ engine.value('game', engine);
 
 engine.system('input', brock.input(engine, renderer.domElement));
 
-engine.component('cameraController', ['input', require('./components/cameracontroller')]);
-engine.component('grid', require('./components/grid'));
-engine.component('editor', ['game', 'input', 'camera', require('./components/editor')]);
-engine.component('blockModel', require('./components/blockmodel'));
-engine.component('firstPersonControl', ['input', require('./components/firstpersoncontrol')]);
+engine.component('cameraController', ['input', require('./src/components/cameracontroller')]);
+engine.component('grid', require('./src/components/grid'));
+engine.component('editor', ['game', 'input', 'camera', require('./src/components/editor')]);
+engine.component('blockModel', require('./src/components/blockmodel'));
+engine.component('firstPersonControl', ['input', require('./src/components/firstpersoncontrol')]);
+engine.component('ground', ['game', require('./src/components/ground')]);
 
 //load data from hidden div
 var formdata = JSON.parse($('#data').html() || {});
 var embedded = formdata.data || {};
+
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
 if (embedded.length > 0) {
@@ -131,46 +134,20 @@ var formatUrl = function() {
 };
 
 $('#link-share').click(function() {
-  engine.pause();
-  vex.dialog.open({
-    message: 'Save your creation',
-    input: '<input id="name-input" value="' + name + '" name="name" type="text" pattern="[a-zA-Z0-9 ]+" placeholder="Name" autocomplete="off" required/><div id="dialog-url">' + formatUrl() + '</div>',
-    buttons: [
-      $.extend({}, vex.dialog.buttons.YES, {
-        text: 'Save'
-      }), $.extend({}, vex.dialog.buttons.NO, {
-        text: 'Cancel'
-      })
-    ],
-    callback: function(data) {
-      engine.pause(false);
-
-      if (data === false) return;
-
-      $.ajax({
-        type: "POST",
-        url: host + '/save',
-        data: JSON.stringify({
-          user: user,
-          name: $("#name-input").val(),
-          data: JSON.stringify(editor.blockModel.serialize())
-        }),
-        contentType: "application/json; charset=utf-8"
-          // dataType: "json"
-      }).done(function() {
-        window.history.pushState('saved', 'Portal', formatUrl());
-        editor.pendingSave = false;
-      }).fail(function() {
-
-      });
-      $("#name-input").unbind();
-    }
+  var data = JSON.stringify(editor.blockModel.serialize());
+  var blob = new Blob([data], {
+    type: "text/plain;charset=utf-8"
   });
+  saveAs(blob, "blocks.br");
+});
 
-  $("#name-input").bind("change paste keyup", function() {
-    name = $("#name-input").val();
-    $("#dialog-url").html(formatUrl);
-  });
+$('#link-open').click(function() {
+  $('#fileinput').trigger('click');
+});
+
+$("#name-input").bind("change paste keyup", function() {
+  name = $("#name-input").val();
+  $("#dialog-url").html(formatUrl);
 });
 
 editor.commandsChanged(function(commands, redos) {
@@ -195,13 +172,6 @@ $('#link-redo').click(function() {
   editor.redo();
 });
 
-$('#link-new').click(function() {
-  //only redirect if not empty
-  if (!editor.empty) {
-    window.location = "/";
-  }
-});
-
 $('#link-undo i').addClass('disabled');
 $('#link-redo i').addClass('disabled');
 
@@ -210,3 +180,101 @@ window.onbeforeunload = function() {
     return "You will lose any unsaved changes. Are you sure to exit?";
   }
 };
+
+if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
+  alert('The File APIs are not fully supported in this browser.');
+  return;
+}
+
+var input = $('#fileinput');
+
+input.on('change', function() {
+  var file = document.getElementById("fileinput").files[0];
+  if (file === undefined) {
+    return;
+  }
+  var filename = file.name;
+
+  var reader = new FileReader();
+  reader.readAsText(file, "UTF-8");
+  reader.onload = function(evt) {
+    editor.load(evt.target.result);
+  }
+  reader.onerror = function(evt) {
+    console.log("error reading file");
+  }
+});
+
+if (user === 'gallery') {
+  var galleryIndex = 0;
+  $('#right').click(function() {
+    galleryIndex++;
+    if (galleryIndex === gallery.length) {
+      galleryIndex = 0;
+    }
+    reloadGallery();
+  });
+
+  $('#left').click(function() {
+    galleryIndex--;
+    if (galleryIndex === -1) {
+      galleryIndex = gallery.length - 1;
+    }
+    reloadGallery();
+  });
+
+  var reloadGallery = function() {
+    editor.resetBlockModel();
+    loadVox(gallery[galleryIndex]);
+  };
+
+  var vox = require('vox.js');
+  var parser = new vox.Parser();
+  var loadVox = function(path) {
+    parser.parse('/vox/' + path).then(function(voxelData) {
+      var palette = _.map(voxelData.palette, function(c) {
+
+        //todo r
+        var color = new THREE.Color(c.r / 256.0, c.g / 256.0, c.b / 256.0).getHex();
+        return color;
+      });
+
+      var center = voxelData.size;
+      center.x = Math.round(center.x / 2);
+      center.y = Math.round(center.y / 2);
+      center.z = Math.round(center.z / 2);
+
+      voxelData.voxels.forEach(function(b) {
+        editor.blockModel.set(b.x - center.x, b.z, b.y - center.y, {
+          color: palette[b.colorIndex]
+        });
+      });
+    }).catch(function(err) {
+      console.log(err);
+    });
+  }
+
+  var gallery = [
+    'biome.vox',
+    'box.vox',
+    'chr_fox.vox',
+    'chr_gumi.vox',
+    'chr_jp.vox',
+    'chr_knight.vox',
+    'chr_man.vox',
+    'chr_old.vox',
+    'chr_rain.vox',
+    'chr_sword.vox',
+    'church.vox',
+    'colors.vox',
+    'ephtracy.vox',
+    'monu.vox',
+    'monu9.vox',
+    'teapot.vox'
+  ];
+
+  reloadGallery();
+} else {
+  $('#left').hide();
+  $('#right').hide();
+}

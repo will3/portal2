@@ -5,6 +5,10 @@ module.exports = function(game, element) {
   var clickTime = 150;
   element = element || window;
 
+  var onPause = function() {
+    resetState();
+  };
+
   var listeners = {
     mousemove: function(e) {
       if (game.pausing) return;
@@ -139,11 +143,9 @@ module.exports = function(game, element) {
       element.addEventListener('mouseup', listeners['mouseup']);
       element.addEventListener('mouseenter', listeners['mouseenter']);
       element.addEventListener('mouseleave', listeners['mouseleave']);
-      element.addEventListener('keydown', listeners['keydown']);
-      element.addEventListener('keyup', listeners['keyup']);
-      game.on('pause', function() {
-        resetState();
-      });
+      window.addEventListener('keydown', listeners['keydown']);
+      window.addEventListener('keyup', listeners['keyup']);
+      game.on('pause', onPause);
     },
 
     get clickTime() {
@@ -168,8 +170,9 @@ module.exports = function(game, element) {
       element.removeEventListener('mouseup', listeners['mouseup']);
       element.removeEventListener('mouseenter', listeners['mouseenter']);
       element.removeEventListener('mouseleave', listeners['mouseleave']);
-      element.removeEventListener('keydown', listeners['keydown']);
-      element.removeEventListener('keyup', listeners['keyup']);
+      window.removeEventListener('keydown', listeners['keydown']);
+      window.removeEventListener('keyup', listeners['keyup']);
+      game.removeEventListener('pause', onPause);
     }
   };
 };

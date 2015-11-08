@@ -13,7 +13,6 @@ module.exports = function() {
     num: 16,
     gridSize: 2,
     objGrid: null,
-    objCollision: null,
     visible: true,
 
     start: function() {
@@ -65,26 +64,8 @@ module.exports = function() {
 
       this.object.add(object);
 
-      geometry = toDispose(new THREE.Geometry());
-      geometry.vertices.push(
-        new THREE.Vector3(minx, 0, minz),
-        new THREE.Vector3(maxx, 0, minz),
-        new THREE.Vector3(maxx, 0, maxz),
-        new THREE.Vector3(minx, 0, maxz)
-      );
-      geometry.vertices.forEach(function(v) {
-        v.sub(new THREE.Vector3(halfx, 0, halfz))
-          .multiplyScalar(gridSize);
-      });
-      geometry.faces.push(
-        new THREE.Face3(0, 2, 1),
-        new THREE.Face3(2, 0, 3)
-      );
-      var objCollision = new THREE.Mesh(geometry);
-
       this.objGrid = object;
       this.objGrid.visible = this.visible;
-      this.objCollision = objCollision;
     },
 
     setVisible: function(value) {

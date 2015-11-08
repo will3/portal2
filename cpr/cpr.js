@@ -51,7 +51,7 @@ var cpr = function(options) {
 
   var placeholder = 'ffffff';
 
-  var input = $('<input class="cpr-input" placeholder="f6f6f6" type="text"></i></input>');
+  var input = $('<input class="cpr-input" placeholder="f6f6f6" type="text"></input>');
 
   root.append(input);
 

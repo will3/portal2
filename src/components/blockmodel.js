@@ -90,8 +90,8 @@ module.exports = function() {
       for (var id in chunks) {
         var chunk = chunks[id];
         if (chunk.mesh !== null) {
-          chunk.geometry.dispose();
-          chunk.material.dispose();
+          chunk.mesh.geometry.dispose();
+          chunk.mesh.material.dispose();
         }
       }
     },

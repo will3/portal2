@@ -25,12 +25,14 @@ module.exports = function(game, input, camera) {
   var coordAbove = null;
   var hoverover = null;
   var objBlockModel = new THREE.Object3D();
+  var objGround = new THREE.Object3D();
   var lastCoord = null;
   var cameraComponent = null;
   var lastMousedown = 0;
   var commands = [];
   var redos = [];
   var commandsListeners = [];
+  // var ground = null;
 
   var notifyCommandsChanged = function() {
     commandsListeners.forEach(function(l) {
@@ -39,19 +41,24 @@ module.exports = function(game, input, camera) {
   };
 
   return {
-    embedded: null,
     grid: null,
     blockModel: null,
     gridSize: 2,
     gridNum: 32,
     color: 0x000000,
     clickTime: 200,
-    mode: 'grid',
     pendingSave: false,
     empty: true,
+    embedded: null,
 
     get commands() {
       return commands;
+    },
+
+    resetBlockModel: function() {
+      game.dettach(objBlockModel, this.blockModel);
+      this.blockModel = game.attach(objBlockModel, 'blockModel');
+      this.blockModel.gridSize = this.gridSize;
     },
 
     setColor: function(value) {
@@ -59,16 +66,6 @@ module.exports = function(game, input, camera) {
 
       this._updateHoverover();
       hoverover.visible = false;
-    },
-
-    setMode: function(mode) {
-      if (this.mode !== mode) {
-        this.mode = mode;
-        if (cameraComponent !== null) {
-          game.dettach(camera, cameraComponent);
-        }
-        this._attachCameraComponent();
-      }
     },
 
     undo: function() {
@@ -94,32 +91,40 @@ module.exports = function(game, input, camera) {
     },
 
     start: function() {
-      this.grid = game.attach(this.object, 'grid');
-      this.grid.gridSize = this.gridSize;
-      this.grid.num = this.gridNum;
+      // this.grid = game.attach(this.object, 'grid');
+      // this.grid.gridSize = this.gridSize;
+      // this.grid.num = this.gridNum;
 
       var offset = -this.gridSize * this.gridNum / 2;
       this.object.add(objBlockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
       this.blockModel.gridSize = this.gridSize;
 
+      this.object.add(objGround);
+      ground = game.attach(objGround, 'ground');
+
       this._updateHoverover();
-      this._attachCameraComponent();
+      cameraComponent = game.attach(camera, 'cameraController');
 
       if (this.embedded !== null) {
         this.empty = false;
-        //try deserialize
-        try {
-          this.blockModel.deserialize(JSON.parse(this.embedded));
-        } catch (err) {
-          //show error
-          console.log(err);
-        }
+        this.load(this.embedded);
+      }
+    },
+
+    load: function(data) {
+      //try deserialize
+      try {
+        this.blockModel.deserialize(JSON.parse(data));
+      } catch (err) {
+        //show error
+        console.log(err);
+        alert('There was an error parsing the file');
       }
     },
 
     tick: function() {
-      if (!this.grid._started) {
+      if (!this.blockModel._started) {
         return;
       }
 
@@ -130,18 +135,10 @@ module.exports = function(game, input, camera) {
 
     },
 
-    _attachCameraComponent: function() {
-      if (this.mode === 'grid') {
-        cameraComponent = game.attach(camera, 'cameraController');
-      } else if (this.mode === 'firstPerson') {
-        cameraComponent = game.attach(camera, 'firstPersonControl');
-      }
-    },
-
     _updateInput: function() {
       var inputState = input.state;
 
-      var space = inputState.keyhold('space');
+      // var space = inputState.keyhold('space');
       // var mousehold = inputState.mousehold(0) && !space;
       // var mousehold2 = inputState.mousehold(2) && !space;
 
@@ -160,53 +157,9 @@ module.exports = function(game, input, camera) {
         }
       }
 
-      //update add block
-      // if (this.mode === 'grid') {
-      //   // if (this.tool === 'add') {
-      //   if (mousehold && coord !== null) {
-      //     //if no last coord, or last coord is different from coord
-      //     if (!lastCoord || !lastCoord.equals(coord)) {
-
-      //       lastCoord = coord.clone();
-      //     }
-      //   }
-      //   // } else if (this.tool === 'remove') {
-      //   else if (mousehold2 && coordChunk !== null) {
-
-      //   }
-      //   // }
-
-      //   if (inputState.keydown('g')) {
-      //     //toggle grid
-      //     this.grid.setVisible(!this.grid.visible);
-      //   }
-      // }
-
-      // else if (this.mode === 'firstPerson') {
-      //   if (this.tool === 'add') {
-      //     if (mouseclick && coord !== null) {
-      //       var command = setCommand(this.blockModel, coord, {
-      //         color: this.color
-      //       });
-      //       this._runCommand(command);
-      //     }
-      //   } else if (this.tool === 'remove') {
-      //     if (mouseclick && coordChunk !== null) {
-      //       var command = setCommand(this.blockModel, coordChunk, null, undefined);
-      //       this._runCommand(command);
-      //     }
-      //   }
-      // }
-
-      //update mode
-      if (inputState.keydown('f')) {
-        if (this.mode === 'grid') {
-          this.setMode('firstPerson');
-          this.grid.setVisible(false);
-        } else if (this.mode === 'firstPerson') {
-          this.setMode('grid');
-          this.grid.setVisible(true);
-        }
+      if (inputState.keydown('g')) {
+        // this.grid.setVisible(!this.grid.visible);
+        ground.setVisible(!ground.visible);
       }
     },
 
@@ -230,11 +183,8 @@ module.exports = function(game, input, camera) {
     _updateCoord: function() {
       var raycaster = getRaycaster();
       var intersects;
-      if (this.mode === 'grid') {
-        intersects = raycaster.intersectObject(this.grid.objCollision);
-      } else if (this.mode === 'firstPerson') {
-        intersects = raycaster.intersectObject(this.blockModel.obj, true);
-      }
+
+      intersects = raycaster.intersectObject(this._getGroundPlane(0, 88888));
 
       if (intersects.length === 0) {
         coord = null;
@@ -249,6 +199,27 @@ module.exports = function(game, input, camera) {
         Math.round(position.x - 0.5),
         Math.round(position.y - 0.5),
         Math.round(position.z - 0.5));
+    },
+
+    _getGroundPlane: function(y, size) {
+      geometry = new THREE.Geometry();
+      geometry.vertices.push(
+        new THREE.Vector3(-size, 0, -size),
+        new THREE.Vector3(size, 0, -size),
+        new THREE.Vector3(size, 0, size),
+        new THREE.Vector3(-size, 0, size)
+      );
+
+      geometry.faces.push(
+        new THREE.Face3(0, 2, 1),
+        new THREE.Face3(2, 0, 3)
+      );
+
+      var material = new THREE.MeshBasicMaterial({
+        color: 0xff0000
+      });
+
+      return new THREE.Mesh(geometry, material);
     },
 
     _updateCoordChunk: function() {
