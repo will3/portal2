@@ -14,9 +14,9 @@ app.set('view engine', 'handlebars');
 app.use(express.static('public'));
 app.use(favicon(__dirname + '/public/images/favicon.ico'));
 
-app.post('/save', jsonParser, require('./controllers/save'));
 app.get('/', require('./controllers/editor'));
-app.get('/v/:user/:name', require('./controllers/editor'));
+app.get('/gallery', require('./controllers/gallery'));
 
-console.log('started on port: ' + 3000);
-app.listen(3000);
+var port = 3000;
+console.log('started on port: ' + port);
+app.listen(port);

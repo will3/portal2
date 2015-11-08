@@ -4,7 +4,7 @@ module.exports = function(game) {
   var obj = new THREE.Object3D();
   var blockModel;
   return {
-    size: 32,
+    size: 64,
     y: 0,
     visible: true,
 

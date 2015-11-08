@@ -1,5 +1,6 @@
 var THREE = require('three');
 var setCommand = require('./commands/set');
+var groupCommand = require('./commands/group');
 
 module.exports = function(game, input, camera) {
 
@@ -20,19 +21,31 @@ module.exports = function(game, input, camera) {
     return raycaster;
   };
 
-  var coord = null;
+  var coordGround = null;
   var coordChunk = null;
   var coordAbove = null;
+
   var hoverover = null;
   var objBlockModel = new THREE.Object3D();
   var objGround = new THREE.Object3D();
-  var lastCoord = null;
-  var cameraComponent = null;
-  var lastMousedown = 0;
   var commands = [];
   var redos = [];
   var commandsListeners = [];
-  // var ground = null;
+  var ground = null;
+
+  //start coord for dragging
+
+  var initDragState = function() {
+    return {
+      startCoord: null,
+      endCoord: null,
+      command: null,
+      startY: 0,
+      button: 0
+    };
+  };
+
+  var dragState = initDragState();
 
   var notifyCommandsChanged = function() {
     commandsListeners.forEach(function(l) {
@@ -49,7 +62,6 @@ module.exports = function(game, input, camera) {
     clickTime: 200,
     pendingSave: false,
     empty: true,
-    embedded: null,
 
     get commands() {
       return commands;
@@ -93,10 +105,6 @@ module.exports = function(game, input, camera) {
     },
 
     start: function() {
-      // this.grid = game.attach(this.object, 'grid');
-      // this.grid.gridSize = this.gridSize;
-      // this.grid.num = this.gridNum;
-
       var offset = -this.gridSize * this.gridNum / 2;
       this.object.add(objBlockModel);
       this.blockModel = game.attach(objBlockModel, 'blockModel');
@@ -108,12 +116,7 @@ module.exports = function(game, input, camera) {
       ground = game.attach(objGround, 'ground');
 
       this._updateHoverover();
-      cameraComponent = game.attach(camera, 'cameraController');
-
-      if (this.embedded !== null) {
-        this.empty = false;
-        this.load(this.embedded);
-      }
+      game.attach(camera, 'cameraController');
     },
 
     load: function(data) {
@@ -132,7 +135,7 @@ module.exports = function(game, input, camera) {
         return;
       }
 
-      this._updateCoord();
+      this._updateCoordGround();
       this._updateCoordChunk();
       this._updateHoveroverPosition();
       this._updateInput();
@@ -142,36 +145,70 @@ module.exports = function(game, input, camera) {
     _updateInput: function() {
       var inputState = input.state;
 
-      // var space = inputState.keyhold('space');
-      // var mousehold = inputState.mousehold(0) && !space;
-      // var mousehold2 = inputState.mousehold(2) && !space;
+      if (inputState.keyhold('space')) {
+        return;
+      }
 
-      if (inputState.mouseclick(0)) {
-        var coordToUse = coordAbove || coord;
+      // dragState.endCoord = 
+
+      if (inputState.mousehold(0) || inputState.mousehold(2)) {
+        var holdButton = inputState.mousehold(0) ? 0 : 2;
+
+        var coordToUse = holdButton === 0 ?
+          (coordAbove || coordGround) :
+          (coordChunk || coordGround);
+
         if (!!coordToUse) {
-          var command = setCommand(this.blockModel, coordToUse, {
-            color: this.color
-          });
-          this._runCommand(command);
-        }
-      } else if (inputState.mouseclick(2)) {
-        if (!!coordChunk) {
-          var command = setCommand(this.blockModel, coordChunk, null, undefined);
-          this._runCommand(command);
+          if (holdButton != dragState.button) {
+            dragState = initDragState();
+          }
+
+          if (dragState.startCoord === null) {
+            dragState.startCoord = coordToUse.clone();
+            dragState.endCoord = coordToUse.clone();
+            dragState.startY = coordToUse.y;
+            dragState.button = holdButton;
+          } else {
+            if (dragState.startY === 1) {
+              console.log('1');
+            }
+            var groundCoord = this._getGroundCoord(dragState.startY);
+            if (!!groundCoord) {
+              dragState.endCoord = groundCoord;
+            }
+          }
+
+          if (dragState.command !== null) {
+            dragState.command.updateCoords(dragState.startCoord, dragState.endCoord);
+          } else {
+            dragState.command = groupCommand({
+              blockModel: this.blockModel,
+              startCoord: dragState.startCoord,
+              endCoord: dragState.endCoord,
+              value: holdButton === 2 ? undefined : {
+                color: this.color
+              }
+            });
+            this._runCommand(dragState.command);
+          }
         }
       }
 
+      if (inputState.mouseup()) {
+        dragState = initDragState();
+      }
+
       if (inputState.keydown('g')) {
-        // this.grid.setVisible(!this.grid.visible);
         ground.setVisible(!ground.visible);
       }
     },
 
     _updateHoveroverPosition: function() {
-      // var coordToUse = this.tool === 'add' ? coord : coordChunk;
-      var coordToUse = coordAbove || coord;
+      hoverover.visible = false;
+      return;
+      var coordToUse = coordAbove || coordGround;
 
-      if (coordToUse === null) {
+      if (!coordToUse) {
         hoverover.visible = false;
         return;
       }
@@ -184,14 +221,18 @@ module.exports = function(game, input, camera) {
       );
     },
 
-    _updateCoord: function() {
+    _updateCoordGround: function() {
+      coordGround = this._getGroundCoord(0, ground.size);
+    },
+
+    _getGroundCoord: function(y, size) {
       var raycaster = getRaycaster();
       var intersects;
 
-      intersects = raycaster.intersectObject(this._getGroundPlane(0, 88888));
+      intersects = raycaster.intersectObject(this._getGroundPlane(y, ground.size));
 
       if (intersects.length === 0) {
-        coord = null;
+        coordGround = null;
         return;
       }
 
@@ -199,7 +240,7 @@ module.exports = function(game, input, camera) {
       var position = point.clone().sub(camera.position);
       position.setLength(position.length() - 0.01).add(camera.position);
       position.multiplyScalar(1 / this.gridSize);
-      coord = new THREE.Vector3(
+      return new THREE.Vector3(
         Math.round(position.x - 0.5),
         Math.round(position.y - 0.5),
         Math.round(position.z - 0.5));
@@ -208,10 +249,10 @@ module.exports = function(game, input, camera) {
     _getGroundPlane: function(y, size) {
       geometry = new THREE.Geometry();
       geometry.vertices.push(
-        new THREE.Vector3(-size, 0, -size),
-        new THREE.Vector3(size, 0, -size),
-        new THREE.Vector3(size, 0, size),
-        new THREE.Vector3(-size, 0, size)
+        new THREE.Vector3(-size, y * this.gridSize, -size),
+        new THREE.Vector3(size, y * this.gridSize, -size),
+        new THREE.Vector3(size, y * this.gridSize, size),
+        new THREE.Vector3(-size, y * this.gridSize, size)
       );
 
       geometry.faces.push(

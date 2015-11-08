@@ -24,9 +24,7 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0xf6f6f6);
   renderer.shadowMapEnabled = true;
-  // renderer.shadowMapType = THREE.BasicShadowMap;
   renderer.shadowMapCullFace = THREE.CullFaceBack;
-  // renderer.shadowMapCullFace = THREE.CullFaceFront;
 
   renderer.shadowMapType = THREE.PCFShadowMap;
   document.body.appendChild(renderer.domElement);
@@ -40,59 +38,23 @@ function init() {
   directionalLight.shadowCameraNear = -100;
   directionalLight.shadowCameraFar = 100;
 
-  directionalLight.shadowMapWidth = 1024;
-  directionalLight.shadowMapHeight = 1024;
+  directionalLight.shadowMapWidth = 2048;
+  directionalLight.shadowMapHeight = 2048;
 
-  // directionalLight.shadowCameraNear = 200;
-  // directionalLight.shadowCameraFar = 4000;
-  // directionalLight.shadowCameraFov = 30;
+  directionalLight.shadowCameraLeft = -64;
+  directionalLight.shadowCameraRight = 64;
+  directionalLight.shadowCameraTop = 64;
+  directionalLight.shadowCameraBottom = -64;
 
   directionalLight.shadowBias = -0.0001;
-  // directionalLight.shadowCameraVisible = true;
 
   directionalLight.castShadow = true;
   directionalLight.shadowDarkness = 0.2;
   scene.add(directionalLight);
-
-
-  // //depth
-  // var depthShader = THREE.ShaderLib["depthRGBA"];
-  // var depthUniforms = THREE.UniformsUtils.clone(depthShader.uniforms);
-  // depthMaterial = new THREE.ShaderMaterial({
-  //   fragmentShader: depthShader.fragmentShader,
-  //   vertexShader: depthShader.vertexShader,
-  //   uniforms: depthUniforms
-  // });
-  // depthMaterial.blending = THREE.NoBlending;
-
-  // //post processing
-
-  // composer = new THREE.EffectComposer(renderer);
-  // composer.addPass(new THREE.RenderPass(scene, camera));
-
-  // depthTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
-  //   minFilter: THREE.NearestFilter,
-  //   magFilter: THREE.NearestFilter,
-  //   format: THREE.RGBAFormat
-  // });
-
-  // var effect = new THREE.ShaderPass(THREE.SSAOShader);
-  // effect.uniforms['tDepth'].value = depthTarget;
-  // effect.uniforms['size'].value.set(window.innerWidth, window.innerHeight);
-  // effect.uniforms['cameraNear'].value = camera.near;
-  // effect.uniforms['cameraFar'].value = camera.far;
-  // effect.renderToScreen = true;
-  // composer.addPass(effect);
 };
 
 function animate() {
   requestAnimationFrame(animate);
-
-  // scene.overrideMaterial = depthMaterial;
-  // renderer.render(scene, camera, depthTarget);
-
-  // scene.overrideMaterial = null;
-  // composer.render();
   renderer.render(scene, camera);
 };
 
@@ -115,15 +77,11 @@ engine.component('blockModel', require('./src/components/blockmodel'));
 engine.component('firstPersonControl', ['input', require('./src/components/firstpersoncontrol')]);
 engine.component('ground', ['game', require('./src/components/ground')]);
 
-//load data from hidden div
-var formdata = JSON.parse($('#data').html() || {});
-var embedded = formdata.data || {};
-
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
-if (embedded.length > 0) {
-  editor.embedded = embedded;
-}
+// if (embedded.length > 0) {
+//   editor.embedded = embedded;
+// }
 scene.add(object);
 
 var palette = require('./palette');
@@ -145,13 +103,6 @@ cpr({
 });
 
 var host = 'http://localhost:3000';
-// var host = 'http://172.17.12.114:3000';
-var user = formdata.user || 'demo';
-var name = formdata.name || '';
-
-var formatUrl = function() {
-  return host + '/v/' + escape(user) + '/' + escape(name);
-};
 
 $('#link-share').click(function() {
   var data = JSON.stringify(editor.blockModel.serialize());
@@ -163,11 +114,6 @@ $('#link-share').click(function() {
 
 $('#link-open').click(function() {
   $('#fileinput').trigger('click');
-});
-
-$("#name-input").bind("change paste keyup", function() {
-  name = $("#name-input").val();
-  $("#dialog-url").html(formatUrl);
 });
 
 editor.commandsChanged(function(commands, redos) {
@@ -225,76 +171,7 @@ input.on('change', function() {
   }
 });
 
-if (user === 'gallery') {
-  var galleryIndex = 0;
-  $('#right').click(function() {
-    galleryIndex++;
-    if (galleryIndex === gallery.length) {
-      galleryIndex = 0;
-    }
-    reloadGallery();
-  });
-
-  $('#left').click(function() {
-    galleryIndex--;
-    if (galleryIndex === -1) {
-      galleryIndex = gallery.length - 1;
-    }
-    reloadGallery();
-  });
-
-  var reloadGallery = function() {
-    editor.resetBlockModel();
-    loadVox(gallery[galleryIndex]);
-  };
-
-  var vox = require('vox.js');
-  var parser = new vox.Parser();
-  var loadVox = function(path) {
-    parser.parse('/vox/' + path).then(function(voxelData) {
-      var palette = _.map(voxelData.palette, function(c) {
-
-        //todo r
-        var color = new THREE.Color(c.r / 256.0, c.g / 256.0, c.b / 256.0).getHex();
-        return color;
-      });
-
-      var center = voxelData.size;
-      center.x = Math.round(center.x / 2);
-      center.y = Math.round(center.y / 2);
-      center.z = Math.round(center.z / 2);
-
-      voxelData.voxels.forEach(function(b) {
-        editor.blockModel.set(b.x - center.x, b.z, b.y - center.y, {
-          color: palette[b.colorIndex]
-        });
-      });
-    }).catch(function(err) {
-      console.log(err);
-    });
-  }
-
-  var gallery = [
-    'chr_fox.vox',
-    'chr_gumi.vox',
-    'chr_jp.vox',
-    'chr_knight.vox',
-    'chr_man.vox',
-    'chr_old.vox',
-    'chr_rain.vox',
-    'chr_sword.vox',
-    'biome.vox',
-    'box.vox',
-    'church.vox',
-    'colors.vox',
-    'ephtracy.vox',
-    'monu.vox',
-    'monu9.vox',
-    'teapot.vox'
-  ];
-
-  reloadGallery();
-} else {
-  $('#left').hide();
-  $('#right').hide();
-}
+//export editor to global
+window.portal = {
+  editor: editor
+};

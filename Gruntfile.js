@@ -14,7 +14,8 @@ module.exports = function(grunt) {
             'bower_components/lodash/lodash.min.js',
             'bower_components/vex/js/*.js',
             'bundle.js',
-            'vendor/*.js'
+            'vendor/*.js',
+            'gallery.js'
           ],
           dest: 'public/js'
         }, {

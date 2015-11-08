@@ -15,6 +15,8 @@ module.exports = function(input) {
     maxZoom: 16,
     zoomScale: 1,
     moveSpeed: 2,
+    yawSpeed: 0.03,
+    pitchSpeed: 0.03,
 
     start: function() {
       this.updatePosition();
@@ -28,7 +30,7 @@ module.exports = function(input) {
 
     _updateMouse: function() {
       var inputState = input.state;
-      var drag = inputState.mousehold(2);
+      var drag = (inputState.mousehold(2) && inputState.keyhold('space')) || inputState.mousehold(1);
 
       if (drag) {
         var diffX = inputState.mouseX - lastX;
@@ -88,6 +90,22 @@ module.exports = function(input) {
 
       if (inputState.keyhold('e')) {
         this.target.add(up.clone().setLength(this.moveSpeed));
+      }
+
+      if (inputState.keyhold('up')) {
+        rotation.x += this.pitchSpeed;
+      }
+
+      if (inputState.keyhold('down')) {
+        rotation.x -= this.pitchSpeed;
+      }
+
+      if (inputState.keyhold('left')) {
+        rotation.y -= this.yawSpeed;
+      }
+
+      if (inputState.keyhold('right')) {
+        rotation.y += this.yawSpeed;
       }
 
       if (this.zoomScale < this.minZoom) {
