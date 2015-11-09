@@ -1,8 +1,9 @@
 var THREE = require('three');
 var setCommand = require('./commands/set');
 var groupCommand = require('./commands/group');
+var EventDispatcher = require('../core/engine').eventDispatcher;
 
-module.exports = function(game, input, camera) {
+module.exports = function(game, input, camera, light) {
 
   var disposeList = [];
 
@@ -21,20 +22,6 @@ module.exports = function(game, input, camera) {
     return raycaster;
   };
 
-  var coordGround = null;
-  var coordChunk = null;
-  var coordAbove = null;
-
-  var hoverover = null;
-  var objBlockModel = new THREE.Object3D();
-  var objGround = new THREE.Object3D();
-  var commands = [];
-  var redos = [];
-  var commandsListeners = [];
-  var ground = null;
-
-  //start coord for dragging
-
   var initDragState = function() {
     return {
       startCoord: null,
@@ -45,16 +32,39 @@ module.exports = function(game, input, camera) {
     };
   };
 
+  //intersect coord for ground object
+  var coordGround = null;
+
+  //intersect coord on chunk, used for removing blocks
+  var coordChunk = null;
+
+  //intersect coord above chunk, used for adding blocks
+  var coordAbove = null;
+
+  //hoverover object
+  var hoverover = null;
+
+  //obj for block model
+  var objBlockModel = new THREE.Object3D();
+
+  //obj for ground
+  var objGround = new THREE.Object3D();
+
+  //commands
+  var commands = [];
+
+  //redos
+  var redos = [];
+
+  //ground component
+  var ground = null;
+
+  //drag state, for commands that uses drag
   var dragState = initDragState();
 
-  var notifyCommandsChanged = function() {
-    commandsListeners.forEach(function(l) {
-      l(commands, redos);
-    });
-  };
+  var cameraController;
 
-  return {
-    grid: null,
+  var editor = {
     blockModel: null,
     gridSize: 2,
     gridNum: 32,
@@ -62,17 +72,22 @@ module.exports = function(game, input, camera) {
     clickTime: 200,
     pendingSave: false,
     empty: true,
+    showShadows: true,
+
+    setShowShadows: function(value) {
+      if (this.showShadows !== value) {
+        this.showShadows = value;
+
+        light.shadowDarkness = this.showShadows ? 0.2 : 0;
+      }
+    },
 
     get commands() {
       return commands;
     },
 
     resetBlockModel: function() {
-      game.dettach(objBlockModel, this.blockModel);
-      this.blockModel = game.attach(objBlockModel, 'blockModel');
-      this.blockModel.gridSize = this.gridSize;
-      this.blockModel.castShadow = true;
-      this.blockModel.receiveShadow = true;
+      this.blockModel.reset();
     },
 
     setColor: function(value) {
@@ -90,7 +105,7 @@ module.exports = function(game, input, camera) {
         redos.push(last);
       }
 
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
     },
 
     redo: function() {
@@ -101,7 +116,7 @@ module.exports = function(game, input, camera) {
         commands.push(last);
       }
 
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
     },
 
     start: function() {
@@ -114,12 +129,16 @@ module.exports = function(game, input, camera) {
 
       this.object.add(objGround);
       ground = game.attach(objGround, 'ground');
+      ground.start();
+      ground._started = true;
 
       this._updateHoverover();
-      game.attach(camera, 'cameraController');
+      cameraController = game.attach(camera, 'cameraController');
+      cameraController.disableKeys = true;
     },
 
     load: function(data) {
+      this.resetBlockModel();
       //try deserialize
       try {
         this.blockModel.deserialize(JSON.parse(data));
@@ -139,7 +158,6 @@ module.exports = function(game, input, camera) {
       this._updateCoordChunk();
       this._updateHoveroverPosition();
       this._updateInput();
-
     },
 
     _updateInput: function() {
@@ -169,9 +187,6 @@ module.exports = function(game, input, camera) {
             dragState.startY = coordToUse.y;
             dragState.button = holdButton;
           } else {
-            if (dragState.startY === 1) {
-              console.log('1');
-            }
             var groundCoord = this._getGroundCoord(dragState.startY);
             if (!!groundCoord) {
               dragState.endCoord = groundCoord;
@@ -182,7 +197,7 @@ module.exports = function(game, input, camera) {
             dragState.command.updateCoords(dragState.startCoord, dragState.endCoord);
           } else {
             dragState.command = groupCommand({
-              blockModel: this.blockModel,
+              blockModel: ground.blockModel,
               startCoord: dragState.startCoord,
               endCoord: dragState.endCoord,
               value: holdButton === 2 ? undefined : {
@@ -200,6 +215,14 @@ module.exports = function(game, input, camera) {
 
       if (inputState.keydown('g')) {
         ground.setVisible(!ground.visible);
+      }
+
+      if (inputState.keydown('/')) {
+        this.setShowShadows(!this.showShadows);
+      }
+
+      if (inputState.keydown('l')) {
+        cameraController.disableKeys = !cameraController.disableKeys;
       }
     },
 
@@ -221,10 +244,6 @@ module.exports = function(game, input, camera) {
       );
     },
 
-    _updateCoordGround: function() {
-      coordGround = this._getGroundCoord(0, ground.size);
-    },
-
     _getGroundCoord: function(y, size) {
       var raycaster = getRaycaster();
       var intersects;
@@ -239,11 +258,21 @@ module.exports = function(game, input, camera) {
       var point = intersects[0].point;
       var position = point.clone().sub(camera.position);
       position.setLength(position.length() - 0.01).add(camera.position);
-      position.multiplyScalar(1 / this.gridSize);
+      return this.posToCoord(position);
+    },
+
+    posToCoord: function(pos) {
+      pos = pos.clone().multiplyScalar(1 / this.gridSize);
       return new THREE.Vector3(
-        Math.round(position.x - 0.5),
-        Math.round(position.y - 0.5),
-        Math.round(position.z - 0.5));
+        Math.round(pos.x - 0.5),
+        Math.round(pos.y - 0.5),
+        Math.round(pos.z - 0.5));
+    },
+
+    coordToPos: function(coord) {
+      return coord.clone()
+        .add(new THREE.Vector3(0.5, 0.5, 0.5))
+        .multiplyScalar(this.gridSize);
     },
 
     _getGroundPlane: function(y, size) {
@@ -265,6 +294,26 @@ module.exports = function(game, input, camera) {
       });
 
       return new THREE.Mesh(geometry, material);
+    },
+
+    _updateCoordGround: function() {
+      var raycaster = getRaycaster();
+      var intersects = raycaster.intersectObject(ground.blockModel.obj, true);
+      if (intersects.length === 0) {
+        coordGround = null;
+        return;
+      }
+
+      var point = intersects[0].point;
+      var diff = point.clone().sub(camera.position);
+
+      var positionAbove = diff.clone().setLength(diff.length() - 0.01).add(camera.position);
+      positionAbove.multiplyScalar(1 / this.gridSize);
+
+      coordGround = new THREE.Vector3(
+        Math.round(positionAbove.x - 0.5),
+        Math.round(positionAbove.y - 0.5),
+        Math.round(positionAbove.z - 0.5));
     },
 
     _updateCoordChunk: function() {
@@ -319,8 +368,7 @@ module.exports = function(game, input, camera) {
     _runCommand: function(command) {
       command.run();
       commands.push(command);
-      redos = [];
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
       this.pendingSave = true;
       this.empty = false;
     },
@@ -329,11 +377,10 @@ module.exports = function(game, input, camera) {
       disposeList.forEach(function(obj) {
         obj.dispose();
       });
-      commandsListeners = null;
-    },
-
-    commandsChanged: function(callback) {
-      commandsListeners.push(callback);
     }
   };
+
+  EventDispatcher.prototype.apply(editor);
+
+  return editor;
 };

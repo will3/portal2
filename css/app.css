@@ -101,3 +101,10 @@ p {
     top: 50%;
     transform: translateY(-50%);
 }
+
+#layers {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}

@@ -6,22 +6,46 @@ var mesher = require('../voxel/mesher');
 
 module.exports = function() {
   var colors = [null];
-  var dirty = false;
-  var mesh = null;
   var chunks = {};
 
   return {
-    size: 16,
+    //chunk size used for meshing
+    chunkSize: 16,
+
+    //size of 1 grid
     gridSize: 2,
+
+    //obj used to contain chunk meshes
     obj: null,
+
+    //if the model casts shadow
     castShadow: false,
+
+    //if the model receives shadow
     receiveShadow: false,
 
+    //clears chunks, palette and scene object
+    reset: function() {
+      this._disposeChunk();
+      this.object.remove(this.obj);
+      this.obj = new THREE.Object3D();
+      this.object.add(this.obj);
+      chunks = {};
+      colors = [null];
+    },
+
+    //given a coord, return a chunk, create new chunk if doesn't exist
+    //query: if true, don't create new chunks when not found, defaults to false
     getChunk: function(x, y, z, query) {
       query = query || false;
-      var origin = new THREE.Vector3(Math.floor(x / this.size), Math.floor(y / this.size), Math.floor(z / this.size));
+
+      var origin = new THREE.Vector3(
+        Math.floor(x / this.chunkSize),
+        Math.floor(y / this.chunkSize),
+        Math.floor(z / this.chunkSize)
+      );
       var id = [origin.x, origin.y, origin.z].join(',');
-      origin.multiplyScalar(this.size);
+      origin.multiplyScalar(this.chunkSize);
 
       if (chunks[id] === undefined) {
         if (query) {
@@ -30,7 +54,7 @@ module.exports = function() {
 
         chunks[id] = {
           origin: origin,
-          map: ndarray([], [this.size, this.size, this.size]),
+          map: ndarray([], [this.chunkSize, this.chunkSize, this.chunkSize]),
           dirty: false,
           mesh: null
         };
@@ -38,6 +62,7 @@ module.exports = function() {
       return chunks[id];
     },
 
+    //gets the raw value in map
     getRaw: function(x, y, z) {
       var chunk = this.getChunk(x, y, z, true);
       if (chunk === undefined) {
@@ -47,6 +72,7 @@ module.exports = function() {
       return chunk.map.get(x - origin.x, y - origin.y, z - origin.z);
     },
 
+    //sets block object for a coord
     set: function(x, y, z, block) {
       var color = block.color;
       var index = _.indexOf(colors, color);
@@ -61,6 +87,7 @@ module.exports = function() {
       chunk.dirty = true;
     },
 
+    //sets raw value for a coord
     setRaw: function(x, y, z, raw) {
       var chunk = this.getChunk(x, y, z);
       var origin = chunk.origin;
@@ -86,16 +113,6 @@ module.exports = function() {
     dispose: function() {
       this._disposeChunk();
       this.object.remove(this.obj);
-    },
-
-    _disposeChunk: function() {
-      for (var id in chunks) {
-        var chunk = chunks[id];
-        if (chunk.mesh !== null) {
-          chunk.mesh.geometry.dispose();
-          chunk.mesh.material.dispose();
-        }
-      }
     },
 
     serialize: function() {
@@ -128,7 +145,7 @@ module.exports = function() {
 
       return {
         gridSize: this.gridSize,
-        size: this.size,
+        size: this.chunkSize,
         colors: colors,
         data: d
       };
@@ -139,7 +156,7 @@ module.exports = function() {
       chunks = {};
 
       if (json.gridSize !== undefined) this.gridSize = json.gridSize;
-      if (json.size !== undefined) this.size = json.size;
+      if (json.size !== undefined) this.chunkSize = json.size;
       if (json.colors !== undefined) colors = json.colors;
 
       for (var id in json.data) {
@@ -192,6 +209,16 @@ module.exports = function() {
       mesh.position.copy(origin);
 
       this.obj.add(mesh);
+    },
+
+    _disposeChunk: function() {
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        if (chunk.mesh !== null) {
+          chunk.mesh.geometry.dispose();
+          chunk.mesh.material.dispose();
+        }
+      }
     }
   };
 };

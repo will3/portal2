@@ -18,7 +18,13 @@ $('#left').click(function() {
 });
 
 var reloadGallery = function() {
+  if (!editor._started) {
+    editor.start();
+    editor._started = true;
+  }
+
   editor.resetBlockModel();
+
   loadVox(gallery[galleryIndex]);
 };
 
@@ -67,5 +73,3 @@ var gallery = [
 ];
 
 reloadGallery();
-
-

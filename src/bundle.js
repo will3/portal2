@@ -1,184 +1,4 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-(function (global){
-var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
-var $ = require('jquery');
-var _ = require('lodash');
-
-var brock = require('./src/core/engine');
-var engine = brock();
-var cpr = require('./cpr/cpr.js');
-
-init();
-animate();
-
-var camera, scene, renderer;
-var depthMaterial, depthTarget, composer;
-
-function init() {
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.z = 5;
-  camera.rotation.order = 'YXZ';
-
-  renderer = new THREE.WebGLRenderer({
-    antialias: true
-  });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0xf6f6f6);
-  renderer.shadowMapEnabled = true;
-  renderer.shadowMapCullFace = THREE.CullFaceBack;
-
-  renderer.shadowMapType = THREE.PCFShadowMap;
-  document.body.appendChild(renderer.domElement);
-
-  var ambientLight = new THREE.AmbientLight(0xCCCCCC);
-  scene.add(ambientLight);
-
-  var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
-  directionalLight.position.set(0.5, 1.0, 0.8);
-
-  directionalLight.shadowCameraNear = -100;
-  directionalLight.shadowCameraFar = 100;
-
-  directionalLight.shadowMapWidth = 2048;
-  directionalLight.shadowMapHeight = 2048;
-
-  directionalLight.shadowCameraLeft = -64;
-  directionalLight.shadowCameraRight = 64;
-  directionalLight.shadowCameraTop = 64;
-  directionalLight.shadowCameraBottom = -64;
-
-  directionalLight.shadowBias = -0.0001;
-
-  directionalLight.castShadow = true;
-  directionalLight.shadowDarkness = 0.2;
-  scene.add(directionalLight);
-};
-
-function animate() {
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
-};
-
-window.addEventListener('resize', function() {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-});
-
-engine.value('scene', scene);
-engine.value('camera', camera);
-engine.value('game', engine);
-
-engine.system('input', brock.input(engine, renderer.domElement));
-
-engine.component('cameraController', ['input', require('./src/components/cameracontroller')]);
-engine.component('grid', require('./src/components/grid'));
-engine.component('editor', ['game', 'input', 'camera', require('./src/components/editor')]);
-engine.component('blockModel', require('./src/components/blockmodel'));
-engine.component('firstPersonControl', ['input', require('./src/components/firstpersoncontrol')]);
-engine.component('ground', ['game', require('./src/components/ground')]);
-
-var object = new THREE.Object3D();
-var editor = engine.attach(object, 'editor');
-// if (embedded.length > 0) {
-//   editor.embedded = embedded;
-// }
-scene.add(object);
-
-var palette = require('./palette');
-
-//default to first palette
-editor.setColor(new THREE.Color(palette[0]).getHex());
-
-cpr({
-  palette: palette,
-  click: function(color) {
-    editor.setColor(parseInt('0x' + color.toHex()));
-  },
-  focus: function() {
-    engine.pause();
-  },
-  blur: function() {
-    engine.pause(false);
-  }
-});
-
-var host = 'http://localhost:3000';
-
-$('#link-share').click(function() {
-  var data = JSON.stringify(editor.blockModel.serialize());
-  var blob = new Blob([data], {
-    type: "text/plain;charset=utf-8"
-  });
-  saveAs(blob, "blocks.br");
-});
-
-$('#link-open').click(function() {
-  $('#fileinput').trigger('click');
-});
-
-editor.commandsChanged(function(commands, redos) {
-  if (commands.length === 0) {
-    $('#link-undo i').addClass('disabled');
-  } else {
-    $('#link-undo i').removeClass('disabled');
-  }
-
-  if (redos.length === 0) {
-    $('#link-redo i').addClass('disabled');
-  } else {
-    $('#link-redo i').removeClass('disabled');
-  }
-});
-
-$('#link-undo').click(function() {
-  editor.undo();
-});
-
-$('#link-redo').click(function() {
-  editor.redo();
-});
-
-$('#link-undo i').addClass('disabled');
-$('#link-redo i').addClass('disabled');
-
-window.onbeforeunload = function() {
-  if (editor.pendingSave) {
-    return "You will lose any unsaved changes. Are you sure to exit?";
-  }
-};
-
-if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
-  alert('The File APIs are not fully supported in this browser.');
-  return;
-}
-
-var input = $('#fileinput');
-
-input.on('change', function() {
-  var file = document.getElementById("fileinput").files[0];
-  if (file === undefined) {
-    return;
-  }
-  var filename = file.name;
-
-  var reader = new FileReader();
-  reader.readAsText(file, "UTF-8");
-  reader.onload = function(evt) {
-    editor.load(evt.target.result);
-  }
-  reader.onerror = function(evt) {
-    console.log("error reading file");
-  }
-});
-
-//export editor to global
-window.portal = {
-  editor: editor
-};
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./cpr/cpr.js":2,"./palette":10,"./src/components/blockmodel":11,"./src/components/cameracontroller":12,"./src/components/editor":15,"./src/components/firstpersoncontrol":16,"./src/components/grid":17,"./src/components/ground":18,"./src/core/engine":19,"jquery":3,"lodash":5}],2:[function(require,module,exports){
 var $ = require('jquery');
 var tinycolor = require('tinycolor2');
 
@@ -281,7 +101,7 @@ var cpr = function(options) {
 };
 
 module.exports = cpr;
-},{"jquery":3,"tinycolor2":9}],3:[function(require,module,exports){
+},{"jquery":2,"tinycolor2":9}],2:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.1.4
  * http://jquery.com/
@@ -9493,7 +9313,7 @@ return jQuery;
 
 }));
 
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 // Source: http://jsfiddle.net/vWx8V/
 // http://stackoverflow.com/questions/5603195/full-list-of-javascript-keycodes
 
@@ -9642,7 +9462,7 @@ for (var alias in aliases) {
   codes[alias] = aliases[alias]
 }
 
-},{}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -21997,7 +21817,7 @@ for (var alias in aliases) {
 }.call(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 var iota = require("iota-array")
 var isBuffer = require("is-buffer")
 
@@ -22342,7 +22162,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
 
 module.exports = wrappedNDArrayCtor
 
-},{"iota-array":7,"is-buffer":8}],7:[function(require,module,exports){
+},{"iota-array":6,"is-buffer":7}],6:[function(require,module,exports){
 "use strict"
 
 function iota(n) {
@@ -22354,7 +22174,7 @@ function iota(n) {
 }
 
 module.exports = iota
-},{}],8:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -22372,6 +22192,335 @@ module.exports = function (obj) {
       obj.constructor.isBuffer(obj))
     ))
 }
+
+},{}],8:[function(require,module,exports){
+/*
+ * A speed-improved perlin and simplex noise algorithms for 2D.
+ *
+ * Based on example code by Stefan Gustavson (stegu@itn.liu.se).
+ * Optimisations by Peter Eastman (peastman@drizzle.stanford.edu).
+ * Better rank ordering method by Stefan Gustavson in 2012.
+ * Converted to Javascript by Joseph Gentle.
+ *
+ * Version 2012-03-09
+ *
+ * This code was placed in the public domain by its original author,
+ * Stefan Gustavson. You may use it as you see fit, but
+ * attribution is appreciated.
+ *
+ */
+
+(function(global){
+
+  // Passing in seed will seed this Noise instance
+  function Noise(seed) {
+    function Grad(x, y, z) {
+      this.x = x; this.y = y; this.z = z;
+    }
+
+    Grad.prototype.dot2 = function(x, y) {
+      return this.x*x + this.y*y;
+    };
+
+    Grad.prototype.dot3 = function(x, y, z) {
+      return this.x*x + this.y*y + this.z*z;
+    };
+
+    this.grad3 = [new Grad(1,1,0),new Grad(-1,1,0),new Grad(1,-1,0),new Grad(-1,-1,0),
+                 new Grad(1,0,1),new Grad(-1,0,1),new Grad(1,0,-1),new Grad(-1,0,-1),
+                 new Grad(0,1,1),new Grad(0,-1,1),new Grad(0,1,-1),new Grad(0,-1,-1)];
+
+    this.p = [151,160,137,91,90,15,
+    131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,
+    190, 6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,
+    88,237,149,56,87,174,20,125,136,171,168, 68,175,74,165,71,134,139,48,27,166,
+    77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,
+    102,143,54, 65,25,63,161, 1,216,80,73,209,76,132,187,208, 89,18,169,200,196,
+    135,130,116,188,159,86,164,100,109,198,173,186, 3,64,52,217,226,250,124,123,
+    5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,
+    223,183,170,213,119,248,152, 2,44,154,163, 70,221,153,101,155,167, 43,172,9,
+    129,22,39,253, 19,98,108,110,79,113,224,232,178,185, 112,104,218,246,97,228,
+    251,34,242,193,238,210,144,12,191,179,162,241, 81,51,145,235,249,14,239,107,
+    49,192,214, 31,181,199,106,157,184, 84,204,176,115,121,50,45,127, 4,150,254,
+    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+    // To remove the need for index wrapping, double the permutation table length
+    this.perm = new Array(512);
+    this.gradP = new Array(512);
+
+    this.seed(seed || 0);
+  }
+
+  // This isn't a very good seeding function, but it works ok. It supports 2^16
+  // different seed values. Write something better if you need more seeds.
+  Noise.prototype.seed = function(seed) {
+    if(seed > 0 && seed < 1) {
+      // Scale the seed out
+      seed *= 65536;
+    }
+
+    seed = Math.floor(seed);
+    if(seed < 256) {
+      seed |= seed << 8;
+    }
+
+    var p = this.p;
+    for(var i = 0; i < 256; i++) {
+      var v;
+      if (i & 1) {
+        v = p[i] ^ (seed & 255);
+      } else {
+        v = p[i] ^ ((seed>>8) & 255);
+      }
+
+      var perm = this.perm;
+      var gradP = this.gradP;
+      perm[i] = perm[i + 256] = v;
+      gradP[i] = gradP[i + 256] = this.grad3[v % 12];
+    }
+  };
+
+  /*
+  for(var i=0; i<256; i++) {
+    perm[i] = perm[i + 256] = p[i];
+    gradP[i] = gradP[i + 256] = grad3[perm[i] % 12];
+  }*/
+
+  // Skewing and unskewing factors for 2, 3, and 4 dimensions
+  var F2 = 0.5*(Math.sqrt(3)-1);
+  var G2 = (3-Math.sqrt(3))/6;
+
+  var F3 = 1/3;
+  var G3 = 1/6;
+
+  // 2D simplex noise
+  Noise.prototype.simplex2 = function(xin, yin) {
+    var n0, n1, n2; // Noise contributions from the three corners
+    // Skew the input space to determine which simplex cell we're in
+    var s = (xin+yin)*F2; // Hairy factor for 2D
+    var i = Math.floor(xin+s);
+    var j = Math.floor(yin+s);
+    var t = (i+j)*G2;
+    var x0 = xin-i+t; // The x,y distances from the cell origin, unskewed.
+    var y0 = yin-j+t;
+    // For the 2D case, the simplex shape is an equilateral triangle.
+    // Determine which simplex we are in.
+    var i1, j1; // Offsets for second (middle) corner of simplex in (i,j) coords
+    if(x0>y0) { // lower triangle, XY order: (0,0)->(1,0)->(1,1)
+      i1=1; j1=0;
+    } else {    // upper triangle, YX order: (0,0)->(0,1)->(1,1)
+      i1=0; j1=1;
+    }
+    // A step of (1,0) in (i,j) means a step of (1-c,-c) in (x,y), and
+    // a step of (0,1) in (i,j) means a step of (-c,1-c) in (x,y), where
+    // c = (3-sqrt(3))/6
+    var x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
+    var y1 = y0 - j1 + G2;
+    var x2 = x0 - 1 + 2 * G2; // Offsets for last corner in (x,y) unskewed coords
+    var y2 = y0 - 1 + 2 * G2;
+    // Work out the hashed gradient indices of the three simplex corners
+    i &= 255;
+    j &= 255;
+
+    var perm = this.perm;
+    var gradP = this.gradP;
+    var gi0 = gradP[i+perm[j]];
+    var gi1 = gradP[i+i1+perm[j+j1]];
+    var gi2 = gradP[i+1+perm[j+1]];
+    // Calculate the contribution from the three corners
+    var t0 = 0.5 - x0*x0-y0*y0;
+    if(t0<0) {
+      n0 = 0;
+    } else {
+      t0 *= t0;
+      n0 = t0 * t0 * gi0.dot2(x0, y0);  // (x,y) of grad3 used for 2D gradient
+    }
+    var t1 = 0.5 - x1*x1-y1*y1;
+    if(t1<0) {
+      n1 = 0;
+    } else {
+      t1 *= t1;
+      n1 = t1 * t1 * gi1.dot2(x1, y1);
+    }
+    var t2 = 0.5 - x2*x2-y2*y2;
+    if(t2<0) {
+      n2 = 0;
+    } else {
+      t2 *= t2;
+      n2 = t2 * t2 * gi2.dot2(x2, y2);
+    }
+    // Add contributions from each corner to get the final noise value.
+    // The result is scaled to return values in the interval [-1,1].
+    return 70 * (n0 + n1 + n2);
+  };
+
+  // 3D simplex noise
+  Noise.prototype.simplex3 = function(xin, yin, zin) {
+    var n0, n1, n2, n3; // Noise contributions from the four corners
+
+    // Skew the input space to determine which simplex cell we're in
+    var s = (xin+yin+zin)*F3; // Hairy factor for 2D
+    var i = Math.floor(xin+s);
+    var j = Math.floor(yin+s);
+    var k = Math.floor(zin+s);
+
+    var t = (i+j+k)*G3;
+    var x0 = xin-i+t; // The x,y distances from the cell origin, unskewed.
+    var y0 = yin-j+t;
+    var z0 = zin-k+t;
+
+    // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
+    // Determine which simplex we are in.
+    var i1, j1, k1; // Offsets for second corner of simplex in (i,j,k) coords
+    var i2, j2, k2; // Offsets for third corner of simplex in (i,j,k) coords
+    if(x0 >= y0) {
+      if(y0 >= z0)      { i1=1; j1=0; k1=0; i2=1; j2=1; k2=0; }
+      else if(x0 >= z0) { i1=1; j1=0; k1=0; i2=1; j2=0; k2=1; }
+      else              { i1=0; j1=0; k1=1; i2=1; j2=0; k2=1; }
+    } else {
+      if(y0 < z0)      { i1=0; j1=0; k1=1; i2=0; j2=1; k2=1; }
+      else if(x0 < z0) { i1=0; j1=1; k1=0; i2=0; j2=1; k2=1; }
+      else             { i1=0; j1=1; k1=0; i2=1; j2=1; k2=0; }
+    }
+    // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
+    // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
+    // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
+    // c = 1/6.
+    var x1 = x0 - i1 + G3; // Offsets for second corner
+    var y1 = y0 - j1 + G3;
+    var z1 = z0 - k1 + G3;
+
+    var x2 = x0 - i2 + 2 * G3; // Offsets for third corner
+    var y2 = y0 - j2 + 2 * G3;
+    var z2 = z0 - k2 + 2 * G3;
+
+    var x3 = x0 - 1 + 3 * G3; // Offsets for fourth corner
+    var y3 = y0 - 1 + 3 * G3;
+    var z3 = z0 - 1 + 3 * G3;
+
+    // Work out the hashed gradient indices of the four simplex corners
+    i &= 255;
+    j &= 255;
+    k &= 255;
+
+    var perm = this.perm;
+    var gradP = this.gradP;
+    var gi0 = gradP[i+   perm[j+   perm[k   ]]];
+    var gi1 = gradP[i+i1+perm[j+j1+perm[k+k1]]];
+    var gi2 = gradP[i+i2+perm[j+j2+perm[k+k2]]];
+    var gi3 = gradP[i+ 1+perm[j+ 1+perm[k+ 1]]];
+
+    // Calculate the contribution from the four corners
+    var t0 = 0.5 - x0*x0-y0*y0-z0*z0;
+    if(t0<0) {
+      n0 = 0;
+    } else {
+      t0 *= t0;
+      n0 = t0 * t0 * gi0.dot3(x0, y0, z0);  // (x,y) of grad3 used for 2D gradient
+    }
+    var t1 = 0.5 - x1*x1-y1*y1-z1*z1;
+    if(t1<0) {
+      n1 = 0;
+    } else {
+      t1 *= t1;
+      n1 = t1 * t1 * gi1.dot3(x1, y1, z1);
+    }
+    var t2 = 0.5 - x2*x2-y2*y2-z2*z2;
+    if(t2<0) {
+      n2 = 0;
+    } else {
+      t2 *= t2;
+      n2 = t2 * t2 * gi2.dot3(x2, y2, z2);
+    }
+    var t3 = 0.5 - x3*x3-y3*y3-z3*z3;
+    if(t3<0) {
+      n3 = 0;
+    } else {
+      t3 *= t3;
+      n3 = t3 * t3 * gi3.dot3(x3, y3, z3);
+    }
+    // Add contributions from each corner to get the final noise value.
+    // The result is scaled to return values in the interval [-1,1].
+    return 32 * (n0 + n1 + n2 + n3);
+
+  };
+
+  // ##### Perlin noise stuff
+
+  function fade(t) {
+    return t*t*t*(t*(t*6-15)+10);
+  }
+
+  function lerp(a, b, t) {
+    return (1-t)*a + t*b;
+  }
+
+  // 2D Perlin Noise
+  Noise.prototype.perlin2 = function(x, y) {
+    // Find unit grid cell containing point
+    var X = Math.floor(x), Y = Math.floor(y);
+    // Get relative xy coordinates of point within that cell
+    x = x - X; y = y - Y;
+    // Wrap the integer cells at 255 (smaller integer period can be introduced here)
+    X = X & 255; Y = Y & 255;
+
+    // Calculate noise contributions from each of the four corners
+    var perm = this.perm;
+    var gradP = this.gradP;
+    var n00 = gradP[X+perm[Y]].dot2(x, y);
+    var n01 = gradP[X+perm[Y+1]].dot2(x, y-1);
+    var n10 = gradP[X+1+perm[Y]].dot2(x-1, y);
+    var n11 = gradP[X+1+perm[Y+1]].dot2(x-1, y-1);
+
+    // Compute the fade curve value for x
+    var u = fade(x);
+
+    // Interpolate the four results
+    return lerp(
+        lerp(n00, n10, u),
+        lerp(n01, n11, u),
+       fade(y));
+  };
+
+  // 3D Perlin Noise
+  Noise.prototype.perlin3 = function(x, y, z) {
+    // Find unit grid cell containing point
+    var X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z);
+    // Get relative xyz coordinates of point within that cell
+    x = x - X; y = y - Y; z = z - Z;
+    // Wrap the integer cells at 255 (smaller integer period can be introduced here)
+    X = X & 255; Y = Y & 255; Z = Z & 255;
+
+    // Calculate noise contributions from each of the eight corners
+    var perm = this.perm;
+    var gradP = this.gradP;
+    var n000 = gradP[X+  perm[Y+  perm[Z  ]]].dot3(x,   y,     z);
+    var n001 = gradP[X+  perm[Y+  perm[Z+1]]].dot3(x,   y,   z-1);
+    var n010 = gradP[X+  perm[Y+1+perm[Z  ]]].dot3(x,   y-1,   z);
+    var n011 = gradP[X+  perm[Y+1+perm[Z+1]]].dot3(x,   y-1, z-1);
+    var n100 = gradP[X+1+perm[Y+  perm[Z  ]]].dot3(x-1,   y,   z);
+    var n101 = gradP[X+1+perm[Y+  perm[Z+1]]].dot3(x-1,   y, z-1);
+    var n110 = gradP[X+1+perm[Y+1+perm[Z  ]]].dot3(x-1, y-1,   z);
+    var n111 = gradP[X+1+perm[Y+1+perm[Z+1]]].dot3(x-1, y-1, z-1);
+
+    // Compute the fade curve value for x, y, z
+    var u = fade(x);
+    var v = fade(y);
+    var w = fade(z);
+
+    // Interpolate
+    return lerp(
+        lerp(
+          lerp(n000, n100, u),
+          lerp(n001, n101, u), w),
+        lerp(
+          lerp(n010, n110, u),
+          lerp(n011, n111, u), w),
+       v);
+  };
+
+  global.Noise = Noise;
+
+})(typeof module === "undefined" ? this : module.exports);
 
 },{}],9:[function(require,module,exports){
 // TinyColor v1.1.2
@@ -23539,29 +23688,202 @@ else {
 })();
 
 },{}],10:[function(require,module,exports){
-module.exports = [
-  'rgb(252,226,193)',
-  'rgb(42,37,30)',
-  'rgb(150,118,52)',
-  'rgb(67,72,158)',
-  'rgb(255,255,255)',
-  'rgb(47,53,125)',
-  'rgb(236,209,48)',
-  'rgb(228,173,47)',
-  'rgb(215,185,150)',
-  'rgb(191,145,121)',
-  'rgb(32,32,32)',
-  'rgb(226,137,132)',
-  'rgb(100,34,31)',
-  'rgb(224,218,215)',
-  'rgb(98,149,195)',
-  'rgb(32,164,72)',
-  'rgb(234,31,35)',
-  'rgb(191,55,50)',
-  'rgb(144,192,120)',
-  'rgb(82,82,82)'
-];
-},{}],11:[function(require,module,exports){
+(function (global){
+var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+var $ = require('jquery');
+var _ = require('lodash');
+
+var brock = require('./core/engine');
+var engine = brock();
+var cpr = require('../cpr/cpr.js');
+
+init();
+animate();
+
+var camera, scene, renderer, directionalLight;
+var depthMaterial, depthTarget, composer;
+
+function init() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.z = 5;
+  camera.rotation.order = 'YXZ';
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0xf6f6f6);
+  renderer.shadowMapEnabled = true;
+  renderer.shadowMapCullFace = THREE.CullFaceBack;
+
+  renderer.shadowMapType = THREE.PCFShadowMap;
+  document.body.appendChild(renderer.domElement);
+
+  var ambientLight = new THREE.AmbientLight(0xCCCCCC);
+  scene.add(ambientLight);
+
+  directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  directionalLight.position.set(0.5, 1.0, 0.8);
+
+  directionalLight.shadowCameraNear = -100;
+  directionalLight.shadowCameraFar = 100;
+
+  directionalLight.shadowMapWidth = 2048;
+  directionalLight.shadowMapHeight = 2048;
+
+  directionalLight.shadowCameraLeft = -64;
+  directionalLight.shadowCameraRight = 64;
+  directionalLight.shadowCameraTop = 64;
+  directionalLight.shadowCameraBottom = -64;
+
+  directionalLight.shadowBias = -0.0001;
+
+  directionalLight.castShadow = true;
+  directionalLight.shadowDarkness = 0.2;
+  scene.add(directionalLight);
+};
+
+var getImageData = true;
+
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+  if (getImageData == true) {
+    imgData = renderer.domElement.toDataURL();
+    getImageData = false;
+  }
+};
+
+window.addEventListener('resize', function() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+engine.value('scene', scene);
+engine.value('camera', camera);
+engine.value('game', engine);
+engine.value('light', directionalLight);
+engine.value('renderer', renderer);
+
+engine.system('input', brock.input(engine, renderer.domElement));
+var collision = engine.system('collision', brock.collision());
+
+engine.component('cameraController', ['input', require('./components/cameracontroller')]);
+engine.component('grid', require('./components/grid'));
+engine.component('editor', ['game', 'input', 'camera', 'light', require('./components/editor')]);
+engine.component('blockModel', require('./components/blockmodel'));
+engine.component('ground', ['game', 'collision', require('./components/ground')]);
+
+engine.component('character', ['game', 'collision', 'editor', 'input', require('./components/character')]);
+engine.component('blockBody', require('./components/bodies/block'));
+
+var object = new THREE.Object3D();
+var editor = engine.attach(object, 'editor');
+engine.value('editor', editor);
+scene.add(object);
+
+var object = new THREE.Object3D();
+object.position.y = 10;
+scene.add(object);
+engine.attach(object, 'character');
+
+collision.addHitTest(require('./hittest/hittest_point_n_block')(editor));
+
+var palette = require('./palette');
+
+//default to first palette
+editor.setColor(new THREE.Color(palette[0]).getHex());
+
+window.onbeforeunload = function() {
+  if (editor.pendingSave) {
+    return "You will lose any unsaved changes. Are you sure to exit?";
+  }
+};
+
+//init color picker
+cpr({
+  palette: palette,
+  click: function(color) {
+    editor.setColor(parseInt('0x' + color.toHex()));
+  },
+  focus: function() {
+    engine.pause();
+  },
+  blur: function() {
+    engine.pause(false);
+  }
+});
+
+//init nav bar
+$('#link-share').click(function() {
+  var data = JSON.stringify(editor.blockModel.serialize());
+  var blob = new Blob([data], {
+    type: "text/plain;charset=utf-8"
+  });
+  saveAs(blob, "blocks.br");
+});
+
+$('#link-open').click(function() {
+  $('#fileinput').trigger('click');
+});
+
+editor.on('commands', function(commands, redos) {
+  if (commands.length === 0) {
+    $('#link-undo i').addClass('disabled');
+  } else {
+    $('#link-undo i').removeClass('disabled');
+  }
+
+  if (redos.length === 0) {
+    $('#link-redo i').addClass('disabled');
+  } else {
+    $('#link-redo i').removeClass('disabled');
+  }
+});
+
+$('#link-undo').click(function() {
+  editor.undo();
+});
+
+$('#link-redo').click(function() {
+  editor.redo();
+});
+
+$('#link-undo i').addClass('disabled');
+$('#link-redo i').addClass('disabled');
+
+if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
+  alert('The File APIs are not fully supported in this browser.');
+  return;
+}
+
+var input = $('#fileinput');
+
+input.on('change', function() {
+  var file = document.getElementById("fileinput").files[0];
+  if (file === undefined) {
+    return;
+  }
+  var filename = file.name;
+
+  var reader = new FileReader();
+  reader.readAsText(file, "UTF-8");
+  reader.onload = function(evt) {
+    editor.load(evt.target.result);
+  }
+  reader.onerror = function(evt) {
+    console.log("error reading file");
+  }
+});
+
+//export editor to global
+window.portal = {
+  editor: editor
+};
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"../cpr/cpr.js":1,"./components/blockmodel":11,"./components/bodies/block":12,"./components/cameracontroller":13,"./components/character":14,"./components/editor":17,"./components/grid":18,"./components/ground":19,"./core/engine":20,"./hittest/hittest_point_n_block":24,"./palette":25,"jquery":2,"lodash":4}],11:[function(require,module,exports){
 (function (global){
 var ndarray = require('ndarray');
 var _ = require('lodash');
@@ -23571,22 +23893,46 @@ var mesher = require('../voxel/mesher');
 
 module.exports = function() {
   var colors = [null];
-  var dirty = false;
-  var mesh = null;
   var chunks = {};
 
   return {
-    size: 16,
+    //chunk size used for meshing
+    chunkSize: 16,
+
+    //size of 1 grid
     gridSize: 2,
+
+    //obj used to contain chunk meshes
     obj: null,
+
+    //if the model casts shadow
     castShadow: false,
+
+    //if the model receives shadow
     receiveShadow: false,
 
+    //clears chunks, palette and scene object
+    reset: function() {
+      this._disposeChunk();
+      this.object.remove(this.obj);
+      this.obj = new THREE.Object3D();
+      this.object.add(this.obj);
+      chunks = {};
+      colors = [null];
+    },
+
+    //given a coord, return a chunk, create new chunk if doesn't exist
+    //query: if true, don't create new chunks when not found, defaults to false
     getChunk: function(x, y, z, query) {
       query = query || false;
-      var origin = new THREE.Vector3(Math.floor(x / this.size), Math.floor(y / this.size), Math.floor(z / this.size));
+
+      var origin = new THREE.Vector3(
+        Math.floor(x / this.chunkSize),
+        Math.floor(y / this.chunkSize),
+        Math.floor(z / this.chunkSize)
+      );
       var id = [origin.x, origin.y, origin.z].join(',');
-      origin.multiplyScalar(this.size);
+      origin.multiplyScalar(this.chunkSize);
 
       if (chunks[id] === undefined) {
         if (query) {
@@ -23595,7 +23941,7 @@ module.exports = function() {
 
         chunks[id] = {
           origin: origin,
-          map: ndarray([], [this.size, this.size, this.size]),
+          map: ndarray([], [this.chunkSize, this.chunkSize, this.chunkSize]),
           dirty: false,
           mesh: null
         };
@@ -23603,6 +23949,7 @@ module.exports = function() {
       return chunks[id];
     },
 
+    //gets the raw value in map
     getRaw: function(x, y, z) {
       var chunk = this.getChunk(x, y, z, true);
       if (chunk === undefined) {
@@ -23612,6 +23959,7 @@ module.exports = function() {
       return chunk.map.get(x - origin.x, y - origin.y, z - origin.z);
     },
 
+    //sets block object for a coord
     set: function(x, y, z, block) {
       var color = block.color;
       var index = _.indexOf(colors, color);
@@ -23626,6 +23974,7 @@ module.exports = function() {
       chunk.dirty = true;
     },
 
+    //sets raw value for a coord
     setRaw: function(x, y, z, raw) {
       var chunk = this.getChunk(x, y, z);
       var origin = chunk.origin;
@@ -23651,16 +24000,6 @@ module.exports = function() {
     dispose: function() {
       this._disposeChunk();
       this.object.remove(this.obj);
-    },
-
-    _disposeChunk: function() {
-      for (var id in chunks) {
-        var chunk = chunks[id];
-        if (chunk.mesh !== null) {
-          chunk.mesh.geometry.dispose();
-          chunk.mesh.material.dispose();
-        }
-      }
     },
 
     serialize: function() {
@@ -23693,7 +24032,7 @@ module.exports = function() {
 
       return {
         gridSize: this.gridSize,
-        size: this.size,
+        size: this.chunkSize,
         colors: colors,
         data: d
       };
@@ -23704,7 +24043,7 @@ module.exports = function() {
       chunks = {};
 
       if (json.gridSize !== undefined) this.gridSize = json.gridSize;
-      if (json.size !== undefined) this.size = json.size;
+      if (json.size !== undefined) this.chunkSize = json.size;
       if (json.colors !== undefined) colors = json.colors;
 
       for (var id in json.data) {
@@ -23757,11 +24096,33 @@ module.exports = function() {
       mesh.position.copy(origin);
 
       this.obj.add(mesh);
+    },
+
+    _disposeChunk: function() {
+      for (var id in chunks) {
+        var chunk = chunks[id];
+        if (chunk.mesh !== null) {
+          chunk.mesh.geometry.dispose();
+          chunk.mesh.material.dispose();
+        }
+      }
     }
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../voxel/mesher":21,"lodash":5,"ndarray":6}],12:[function(require,module,exports){
+},{"../voxel/mesher":26,"lodash":4,"ndarray":5}],12:[function(require,module,exports){
+(function (global){
+var ndarray = require('ndarray');
+var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+
+module.exports = function() {
+  return {
+    type: 'block',
+    model: null
+  };
+};
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"ndarray":5}],13:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
@@ -23782,6 +24143,7 @@ module.exports = function(input) {
     moveSpeed: 2,
     yawSpeed: 0.03,
     pitchSpeed: 0.03,
+    disableKeys: false,
 
     start: function() {
       this.updatePosition();
@@ -23817,6 +24179,9 @@ module.exports = function(input) {
     },
 
     _updateKeyboard: function() {
+      if (this.disableKeys) {
+        return;
+      }
       var inputState = input.state;
 
       if (inputState.keydown('-')) {
@@ -23890,7 +24255,131 @@ module.exports = function(input) {
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
+(function (global){
+var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+
+module.exports = function(game, collision, editor, input) {
+  var body, blockModel;
+  var ySpeed = 0;
+  var gravity = 0.1;
+  var objBlockModel = new THREE.Object3D();
+  var yawAmount = 0;
+  var forwardAmount = 0;
+  var forward = new THREE.Vector3(0, 0, 1);
+  var invisibleForce = 0;
+  var jumpAmount = 0;
+
+  return {
+    fowardSpeed: 1,
+    yawSpeed: 0.2,
+    jumpSpeed: 2,
+    start: function() {
+      this.object.add(objBlockModel);
+      blockModel = game.attach(objBlockModel, 'blockModel');
+      blockModel.castShadow = true;
+      blockModel.receiveShadow = true;
+      blockModel.set(0, 0, 0, {
+        color: 0xff0000
+      });
+
+      var gridSize = editor.gridSize;
+      objBlockModel.position.set(-gridSize / 2, -gridSize / 2, -gridSize / 2);
+    },
+
+    tick: function() {
+      var originalPosition = this.object.position.clone();
+      this._applyMovement();
+      this._updateCollision(originalPosition);
+      this._updateInput();
+
+      if (this.object.position.y <= -100) {
+        this.object.position.copy(0, 10, 0);
+        ySpeed = 0;
+        invisibleForce = 0;
+      }
+    },
+
+    _updateInput: function() {
+      var inputState = input.state;
+
+      if (inputState.keyhold('w') && !inputState.keyhold('s')) {
+        forwardAmount = 1;
+      } else if (inputState.keyhold('s') && !inputState.keyhold('w')) {
+        forwardAmount = -1;
+      } else {
+        forwardAmount = invisibleForce;
+      }
+
+      // invisibleForce += 0.01;
+
+      if (inputState.keyhold('a') && !inputState.keyhold('d')) {
+        yawAmount = 1;
+      } else if (inputState.keyhold('d') && !inputState.keyhold('a')) {
+        yawAmount = -1;
+      } else {
+        yawAmount = 0;
+      }
+
+      if(inputState.keydown('space')){
+        jumpAmount = 1;
+      }else{
+        jumpAmount = 0;
+      }
+    },
+
+    //returns position
+    _applyMovement: function() {
+      var position = this.object.position.clone();
+      var rotation = this.object.rotation.clone();
+
+      ySpeed += jumpAmount * this.jumpSpeed;
+
+      ySpeed -= gravity;
+      position.y += ySpeed;
+
+      var yaw = yawAmount * this.yawSpeed;
+      rotation.y += yaw;
+
+      var vector = forward.clone().applyEuler(this.object.rotation).setLength(forwardAmount * this.fowardSpeed);
+      position.add(vector);
+
+      this.object.position.copy(position);
+      this.object.rotation.copy(rotation);
+    },
+
+    _updateCollision: function(originalPosition) {
+      var pointFeet = this.object.position.clone();
+      pointFeet.y -= editor.gridSize / 2;
+
+      var body = {
+        type: 'point',
+        group: 'character',
+        masks: ['terrian'],
+        point: pointFeet
+      };
+
+      var results = collision.resolveInstantly(body);
+      var characterCoord = editor.posToCoord(this.object.position);
+
+      if (results.length > 0) {
+        for (var i = 0; i < results.length; i++) {
+          var result = results[i];
+          var coord = result.coord;
+          coord.add(new THREE.Vector3(0, 0.5, 0));
+          var pos = editor.coordToPos(coord);
+          this.object.position.y = pos.y + editor.gridSize / 2;
+          ySpeed = 0;
+          if(result.ramp === true){
+            invisibleForce *= 0.5;
+          }
+        }
+      }
+    }
+  }
+};
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],15:[function(require,module,exports){
 var _ = require('lodash');
 
 module.exports = function(params) {
@@ -23960,27 +24449,7 @@ module.exports = function(params) {
     }
   }
 };
-
-// module.exports = function(blockModel, coord, value, valueRaw) {
-//   var original;
-
-//   return {
-//     run: function() {
-//       original = blockModel.getRaw(coord.x, coord.y, coord.z);
-
-//       if (!value) {
-//         blockModel.setRaw(coord.x, coord.y, coord.z, valueRaw);
-//       } else {
-//         blockModel.set(coord.x, coord.y, coord.z, value);
-//       }
-//     },
-
-//     undo: function() {
-//       blockModel.setRaw(coord.x, coord.y, coord.z, original);
-//     }
-//   }
-// };
-},{"lodash":5}],14:[function(require,module,exports){
+},{"lodash":4}],16:[function(require,module,exports){
 module.exports = function(blockModel, coord, value, valueRaw) {
   var original;
 
@@ -24000,13 +24469,14 @@ module.exports = function(blockModel, coord, value, valueRaw) {
     }
   }
 };
-},{}],15:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 var setCommand = require('./commands/set');
 var groupCommand = require('./commands/group');
+var EventDispatcher = require('../core/engine').eventDispatcher;
 
-module.exports = function(game, input, camera) {
+module.exports = function(game, input, camera, light) {
 
   var disposeList = [];
 
@@ -24025,20 +24495,6 @@ module.exports = function(game, input, camera) {
     return raycaster;
   };
 
-  var coordGround = null;
-  var coordChunk = null;
-  var coordAbove = null;
-
-  var hoverover = null;
-  var objBlockModel = new THREE.Object3D();
-  var objGround = new THREE.Object3D();
-  var commands = [];
-  var redos = [];
-  var commandsListeners = [];
-  var ground = null;
-
-  //start coord for dragging
-
   var initDragState = function() {
     return {
       startCoord: null,
@@ -24049,16 +24505,39 @@ module.exports = function(game, input, camera) {
     };
   };
 
+  //intersect coord for ground object
+  var coordGround = null;
+
+  //intersect coord on chunk, used for removing blocks
+  var coordChunk = null;
+
+  //intersect coord above chunk, used for adding blocks
+  var coordAbove = null;
+
+  //hoverover object
+  var hoverover = null;
+
+  //obj for block model
+  var objBlockModel = new THREE.Object3D();
+
+  //obj for ground
+  var objGround = new THREE.Object3D();
+
+  //commands
+  var commands = [];
+
+  //redos
+  var redos = [];
+
+  //ground component
+  var ground = null;
+
+  //drag state, for commands that uses drag
   var dragState = initDragState();
 
-  var notifyCommandsChanged = function() {
-    commandsListeners.forEach(function(l) {
-      l(commands, redos);
-    });
-  };
+  var cameraController;
 
-  return {
-    grid: null,
+  var editor = {
     blockModel: null,
     gridSize: 2,
     gridNum: 32,
@@ -24066,17 +24545,22 @@ module.exports = function(game, input, camera) {
     clickTime: 200,
     pendingSave: false,
     empty: true,
+    showShadows: true,
+
+    setShowShadows: function(value) {
+      if (this.showShadows !== value) {
+        this.showShadows = value;
+
+        light.shadowDarkness = this.showShadows ? 0.2 : 0;
+      }
+    },
 
     get commands() {
       return commands;
     },
 
     resetBlockModel: function() {
-      game.dettach(objBlockModel, this.blockModel);
-      this.blockModel = game.attach(objBlockModel, 'blockModel');
-      this.blockModel.gridSize = this.gridSize;
-      this.blockModel.castShadow = true;
-      this.blockModel.receiveShadow = true;
+      this.blockModel.reset();
     },
 
     setColor: function(value) {
@@ -24094,7 +24578,7 @@ module.exports = function(game, input, camera) {
         redos.push(last);
       }
 
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
     },
 
     redo: function() {
@@ -24105,7 +24589,7 @@ module.exports = function(game, input, camera) {
         commands.push(last);
       }
 
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
     },
 
     start: function() {
@@ -24118,12 +24602,16 @@ module.exports = function(game, input, camera) {
 
       this.object.add(objGround);
       ground = game.attach(objGround, 'ground');
+      ground.start();
+      ground._started = true;
 
       this._updateHoverover();
-      game.attach(camera, 'cameraController');
+      cameraController = game.attach(camera, 'cameraController');
+      cameraController.disableKeys = true;
     },
 
     load: function(data) {
+      this.resetBlockModel();
       //try deserialize
       try {
         this.blockModel.deserialize(JSON.parse(data));
@@ -24143,7 +24631,6 @@ module.exports = function(game, input, camera) {
       this._updateCoordChunk();
       this._updateHoveroverPosition();
       this._updateInput();
-
     },
 
     _updateInput: function() {
@@ -24173,9 +24660,6 @@ module.exports = function(game, input, camera) {
             dragState.startY = coordToUse.y;
             dragState.button = holdButton;
           } else {
-            if (dragState.startY === 1) {
-              console.log('1');
-            }
             var groundCoord = this._getGroundCoord(dragState.startY);
             if (!!groundCoord) {
               dragState.endCoord = groundCoord;
@@ -24186,7 +24670,7 @@ module.exports = function(game, input, camera) {
             dragState.command.updateCoords(dragState.startCoord, dragState.endCoord);
           } else {
             dragState.command = groupCommand({
-              blockModel: this.blockModel,
+              blockModel: ground.blockModel,
               startCoord: dragState.startCoord,
               endCoord: dragState.endCoord,
               value: holdButton === 2 ? undefined : {
@@ -24204,6 +24688,14 @@ module.exports = function(game, input, camera) {
 
       if (inputState.keydown('g')) {
         ground.setVisible(!ground.visible);
+      }
+
+      if (inputState.keydown('/')) {
+        this.setShowShadows(!this.showShadows);
+      }
+
+      if (inputState.keydown('l')) {
+        cameraController.disableKeys = !cameraController.disableKeys;
       }
     },
 
@@ -24225,10 +24717,6 @@ module.exports = function(game, input, camera) {
       );
     },
 
-    _updateCoordGround: function() {
-      coordGround = this._getGroundCoord(0, ground.size);
-    },
-
     _getGroundCoord: function(y, size) {
       var raycaster = getRaycaster();
       var intersects;
@@ -24243,11 +24731,21 @@ module.exports = function(game, input, camera) {
       var point = intersects[0].point;
       var position = point.clone().sub(camera.position);
       position.setLength(position.length() - 0.01).add(camera.position);
-      position.multiplyScalar(1 / this.gridSize);
+      return this.posToCoord(position);
+    },
+
+    posToCoord: function(pos) {
+      pos = pos.clone().multiplyScalar(1 / this.gridSize);
       return new THREE.Vector3(
-        Math.round(position.x - 0.5),
-        Math.round(position.y - 0.5),
-        Math.round(position.z - 0.5));
+        Math.round(pos.x - 0.5),
+        Math.round(pos.y - 0.5),
+        Math.round(pos.z - 0.5));
+    },
+
+    coordToPos: function(coord) {
+      return coord.clone()
+        .add(new THREE.Vector3(0.5, 0.5, 0.5))
+        .multiplyScalar(this.gridSize);
     },
 
     _getGroundPlane: function(y, size) {
@@ -24269,6 +24767,26 @@ module.exports = function(game, input, camera) {
       });
 
       return new THREE.Mesh(geometry, material);
+    },
+
+    _updateCoordGround: function() {
+      var raycaster = getRaycaster();
+      var intersects = raycaster.intersectObject(ground.blockModel.obj, true);
+      if (intersects.length === 0) {
+        coordGround = null;
+        return;
+      }
+
+      var point = intersects[0].point;
+      var diff = point.clone().sub(camera.position);
+
+      var positionAbove = diff.clone().setLength(diff.length() - 0.01).add(camera.position);
+      positionAbove.multiplyScalar(1 / this.gridSize);
+
+      coordGround = new THREE.Vector3(
+        Math.round(positionAbove.x - 0.5),
+        Math.round(positionAbove.y - 0.5),
+        Math.round(positionAbove.z - 0.5));
     },
 
     _updateCoordChunk: function() {
@@ -24323,8 +24841,7 @@ module.exports = function(game, input, camera) {
     _runCommand: function(command) {
       command.run();
       commands.push(command);
-      redos = [];
-      notifyCommandsChanged();
+      this.emit('commands', commands, redos);
       this.pendingSave = true;
       this.empty = false;
     },
@@ -24333,118 +24850,15 @@ module.exports = function(game, input, camera) {
       disposeList.forEach(function(obj) {
         obj.dispose();
       });
-      commandsListeners = null;
-    },
-
-    commandsChanged: function(callback) {
-      commandsListeners.push(callback);
     }
   };
+
+  EventDispatcher.prototype.apply(editor);
+
+  return editor;
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./commands/group":13,"./commands/set":14}],16:[function(require,module,exports){
-//attach a first person control on an object/camera
-module.exports = function(input) {
-  var forward = 0;
-  var strife = 0;
-  var mousehold = false;
-  var lastX = null;
-  var lastY = null;
-  var yaw = 0;
-  var pitch = 0;
-
-  return {
-    forwardSpeed: 1,
-    backwardSpeed: 0.5,
-    strifeSpeed: 1,
-    rotateSpeed: 0.01,
-
-    start: function() {
-
-    },
-
-    tick: function() {
-      this._updateInput();
-      this._updateMovement();
-    },
-
-    _updateInput: function() {
-      var inputState = input.state;
-
-      forward = 0;
-      if (inputState.keyhold('w')) {
-        forward++;
-      }
-
-      if (inputState.keyhold('s')) {
-        forward--;
-      }
-
-      strife = 0;
-      if (inputState.keyhold('d')) {
-        strife++;
-      }
-
-      if (inputState.keyhold('a')) {
-        strife--;
-      }
-
-      if (inputState.mousedown(2)) {
-        mousehold = true;
-      }
-
-      if (inputState.mouseup(2)) {
-        mousehold = false;
-        lastX = lastY = null;
-      }
-
-      if (inputState.mouseenter || inputState.mouseleave) {
-        mousehold = false;
-        lastX = lastY = null;
-      }
-
-      if (mousehold) {
-        if (lastX !== null && lastY !== null) {
-          var diffX = inputState.mouseX - lastX;
-          var diffY = inputState.mouseY - lastY;
-
-          yaw = diffX * this.rotateSpeed;
-          pitch = diffY * this.rotateSpeed;
-        }
-
-        lastX = inputState.mouseX;
-        lastY = inputState.mouseY;
-      }
-    },
-
-    _updateMovement: function() {
-      if (forward > 0) {
-        var forwardVector = new THREE.Vector3(0, 0, -1);
-        forwardVector.applyEuler(this.object.rotation).multiplyScalar(this.forwardSpeed);
-        this.object.position.add(forwardVector);
-      } else if (forward < 0) {
-        var backwardVector = new THREE.Vector3(0, 0, 1);
-        backwardVector.applyEuler(this.object.rotation).multiplyScalar(this.backwardSpeed);
-        this.object.position.add(backwardVector);
-      }
-
-      var rightVector = new THREE.Vector3(1, 0, 0);
-      rightVector.applyEuler(this.object.rotation).multiplyScalar(strife * this.strifeSpeed);
-      this.object.position.add(rightVector);
-
-      this.object.rotation.y -= yaw;
-
-      this.object.rotation.x -= pitch;
-
-      if (this.object.rotation.x > Math.PI / 2) {
-        this.object.rotation.x = Math.PI / 2;
-      } else if (this.object.rotation.x < -Math.PI / 2) {
-        this.object.rotation.x = -Math.PI / 2;
-      }
-    }
-  }
-};
-},{}],17:[function(require,module,exports){
+},{"../core/engine":20,"./commands/group":15,"./commands/set":16}],18:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
@@ -24531,28 +24945,63 @@ module.exports = function() {
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+var Noise = require('noisejs').Noise;
 
-module.exports = function(game) {
+module.exports = function(game, collision) {
   var obj = new THREE.Object3D();
-  var blockModel;
+  var body;
+  var noise = new Noise();
+  var featureNoise = new Noise();
+  noise.seed(Math.random());
+  featureNoise.seed(Math.random());
+
   return {
-    size: 64,
+    size: 32,
     y: 0,
     visible: true,
+    blockModel: null,
 
     start: function() {
       var halfsize = this.size / 2;
       this.object.add(obj);
-      blockModel = game.attach(obj, 'blockModel');
-      blockModel.receiveShadow = true;
+      this.blockModel = game.attach(obj, 'blockModel');
+      this.blockModel.receiveShadow = true;
+
+      body = game.attach(obj, 'blockBody');
+      body.group = 'terrian';
+      body.model = this.blockModel;
+      collision.addBody(body);
+
+      var amplitude = Math.random() * 2 + 4;
+
       for (var x = -halfsize; x < halfsize; x++) {
         for (var z = -halfsize; z < halfsize; z++) {
-          blockModel.set(x, this.y - 1, z, {
-            color: 0xe6e6e6
-          });
+          var n = noise.simplex2(x / 20, z / 20);
+          var height = Math.round(n * amplitude - 1);
+
+          for (var y = height; y >= height - 2; y--) {
+
+            var feature = featureNoise.simplex3(x / 25, y / 25, z / 25);
+            var color = 0x90C078;
+            if (feature < -0.4) {
+              color = 0x444444;
+            } else if (feature < -0.3) {
+              color = 0x555555;
+            } else if (feature < -0.2) {
+              color = 0x666666;
+            } else if (feature < -0.1) {
+              color = 0x777777;
+            } else if (feature < 0) {
+              color = 0x888888;
+            }
+
+            this.blockModel.set(x, y, z, {
+              color: color
+            });
+          }
         }
       }
     },
@@ -24564,10 +25013,11 @@ module.exports = function(game) {
   }
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],19:[function(require,module,exports){
+},{"noisejs":8}],20:[function(require,module,exports){
 (function (global){
 var _ = require('lodash');
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+var EventDispatcher = require('./eventdispatcher');
 
 var Engine = function() {
   var engine = {};
@@ -24575,41 +25025,6 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
-  var listeners = {};
-
-  var on = function(event, callback) {
-    var list = listeners[event];
-    if (list === undefined) {
-      list = listeners[event] = [];
-    }
-    list = listeners[event].push(callback);
-  };
-
-  var dispatchEvent = function(event) {
-    var args = Array.prototype.slice.call(arguments);
-    args.shift();
-
-    var list = listeners[event];
-    if (list === undefined) {
-      return;
-    }
-
-    list.forEach(function(callback) {
-      callback.apply(null, args);
-    });
-  };
-
-  var removeListener = function(event, callback) {
-    var list = listeners[event];
-    if (list === undefined) {
-      return;
-    }
-    _.pull(list, callback);
-
-    if (callback === undefined) {
-      delete listeners[event];
-    }
-  };
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -24634,10 +25049,12 @@ var Engine = function() {
 
   var bindSystem = function(type, system) {
     systems[type] = system;
+    return system;
   };
 
   var bindValue = function(type, value) {
     values[type] = value;
+    return value;
   };
 
   var createComponent = function(type) {
@@ -24663,6 +25080,10 @@ var Engine = function() {
       component = createComponent(type);
       component._type = type;
       component.object = object;
+
+      if (component._id === undefined) {
+        component._id = THREE.Math.generateUUID();
+      }
     }
 
     if (map[id] === undefined) {
@@ -24705,9 +25126,9 @@ var Engine = function() {
   var pause = function(value) {
     pausing = value === undefined ? true : value;
     if (pause) {
-      dispatchEvent('pause');
+      this.emit('pause');
     } else {
-      dispatchEvent('resume');
+      this.emit('resume');
     }
   };
 
@@ -24726,6 +25147,9 @@ var Engine = function() {
     }
 
     traverse(function(c) {
+      if (c.active === false) {
+        return;
+      }
       if (c._started !== true) {
         if (c.start !== undefined) c.start();
         c._started = true;
@@ -24734,6 +25158,9 @@ var Engine = function() {
     });
 
     traverse(function(c) {
+      if (c.active === false) {
+        return;
+      }
       if (c.lateTick !== undefined) c.lateTick();
     });
 
@@ -24760,18 +25187,212 @@ var Engine = function() {
     attach: attach,
     dettach: dettach,
     tick: tick,
-    pause: pause,
-    on: on,
-    removeListener: removeListener
+    pause: pause
   };
+
+  EventDispatcher.prototype.apply(engine);
 
   return engine;
 };
 
 Engine.input = require('./systems/input');
+Engine.collision = require('./systems/collision');
+Engine.eventDispatcher = require('./eventdispatcher');
+
 module.exports = Engine;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./systems/input":20,"lodash":5}],20:[function(require,module,exports){
+},{"./eventdispatcher":21,"./systems/collision":22,"./systems/input":23,"lodash":4}],21:[function(require,module,exports){
+var EventDispatcher = function() {
+  this._listeners = {};
+};
+
+EventDispatcher.prototype = {
+
+  apply: function(prototype) {
+    prototype._listeners = {};
+    prototype.on = EventDispatcher.prototype.on;
+    prototype.emit = EventDispatcher.prototype.emit;
+    prototype.removeListener = EventDispatcher.prototype.removeListener;
+  },
+
+  on: function(event, callback) {
+    var list = this._listeners[event];
+    if (list === undefined) {
+      list = this._listeners[event] = [];
+    }
+    list = this._listeners[event].push(callback);
+  },
+
+  emit: function(event) {
+    var args = Array.prototype.slice.call(arguments);
+    args.shift();
+
+    var list = this._listeners[event];
+    if (list === undefined) {
+      return;
+    }
+
+    list.forEach(function(callback) {
+      callback.apply(null, args);
+    });
+  },
+
+  removeListener: function(event, callback) {
+    var list = this._listeners[event];
+    if (list === undefined) {
+      return;
+    }
+    _.pull(list, callback);
+
+    if (callback === undefined) {
+      delete this._listeners[event];
+    }
+  }
+
+};
+
+module.exports = EventDispatcher;
+},{}],22:[function(require,module,exports){
+var EventDispatcher = require('../eventdispatcher');
+
+module.exports = function() {
+  var groups = {};
+  var bodys = {};
+  var hitTests = [];
+
+  var collision = {
+    addBody: function(body) {
+      if (body.group === undefined) {
+        return;
+      }
+
+      var group = body.group;
+      var map = groups[group];
+      if (map === undefined) {
+        map = groups[group] = {};
+      }
+
+      var id = body._id;
+      map[id] = body;
+
+      bodys[body._id] = body;
+    },
+
+    removeBody: function(group, id) {
+      var map = groups[group];
+      if (map === undefined) {
+        return;
+      }
+
+      delete map[id];
+      delete bodys[id];
+    },
+
+    //adds a hit test to collision system
+    addHitTest: function(hitTest) {
+      hitTests.push(hitTest);
+    },
+
+    tick: function() {
+      var self = this;
+      this.traverse(function(a, b) {
+        for (var i = 0; i < hitTests.length; i++) {
+          var hitTest = hitTests[i];
+          if (hitTest.shouldResolve(a, b)) {
+            var result = hitTest.resolve(a, b);
+
+            if (result !== undefined && result !== null && result !== false) {
+              self.emit('collision', result);
+            }
+
+            break;
+          }
+        }
+      });
+    },
+
+    resolveInstantly: function(a) {
+      var results = [];
+      this.visitRelevant(a, function(b) {
+        for (var i = 0; i < hitTests.length; i++) {
+          var hitTest = hitTests[i];
+          if (hitTest.shouldResolve(a, b)) {
+            var result = hitTest.resolve(a, b);
+
+            if (result !== undefined && result !== null && result !== false) {
+              results.push(result);
+            }
+
+            break;
+          }
+        }
+      });
+
+      return results;
+    },
+
+    visitRelevant: function(a, callback) {
+      var masks = a.masks;
+
+      for (var i = 0; i < masks.length; i++) {
+        var mask = masks[i];
+        var map = groups[mask];
+        if (map === undefined) {
+          continue;
+        }
+
+        for (var id in map) {
+          var b = map[id];
+
+          if (a === b) {
+            continue;
+          }
+
+          callback(b);
+        }
+      }
+    },
+
+    traverse: function(callback) {
+      var visited = {};
+      for (var id in bodys) {
+        var a = bodys[id];
+        var masks = a.masks || [];
+
+        for (var i = 0; i < masks.length; i++) {
+          var mask = masks[i];
+          var map = groups[mask];
+          if (map === undefined) {
+            continue;
+          }
+
+          for (var id in map) {
+            var b = map[id];
+
+            if (a === b) {
+              continue;
+            }
+
+            if (visited[a._id] !== undefined && visited[a._id][b._id] === true) {
+              continue;
+            }
+
+            callback(a, b);
+            if (visited[b._id] === undefined) {
+              visited[b._id] = {};
+            }
+            visited[b._id][a._id] = true;
+          }
+        }
+      }
+    }
+  }
+
+  EventDispatcher.prototype.apply(collision);
+
+  return collision;
+};
+},{"../eventdispatcher":21}],23:[function(require,module,exports){
 var keycode = require('keycode');
 var _ = require('lodash');
 
@@ -24950,9 +25571,64 @@ module.exports = function(game, element) {
     }
   };
 };
-},{"keycode":4,"lodash":5}],21:[function(require,module,exports){
+},{"keycode":3,"lodash":4}],24:[function(require,module,exports){
+module.exports = function(editor) {
+  return {
+    shouldResolve: function(a, b) {
+      return (a.type === 'point' && b.type === 'block') || (a.type === 'block' && b.type === 'point');
+    },
+
+    resolve: function(a, b) {
+      var point = a.type === 'point' ? a : b;
+      var block = point === a ? b : a;
+
+      var coord = editor.posToCoord(point.point);
+
+      if (block.model.getRaw(coord.x, coord.y + 1, coord.z) !== undefined) {
+        return {
+          ramp: true,
+          coord: new THREE.Vector3(coord.x, coord.y + 1, coord.z)
+        }
+      }
+
+      if (block.model.getRaw(coord.x, coord.y, coord.z) !== undefined) {
+        return {
+          coord: coord
+        };
+      }
+
+
+
+      return false;
+    }
+  }
+};
+},{}],25:[function(require,module,exports){
+module.exports = [
+  'rgb(67,72,158)',
+  'rgb(252,226,193)',
+  'rgb(42,37,30)',
+  'rgb(150,118,52)',
+  'rgb(255,255,255)',
+  'rgb(47,53,125)',
+  'rgb(236,209,48)',
+  'rgb(228,173,47)',
+  'rgb(215,185,150)',
+  'rgb(191,145,121)',
+  'rgb(32,32,32)',
+  'rgb(226,137,132)',
+  'rgb(100,34,31)',
+  'rgb(224,218,215)',
+  'rgb(98,149,195)',
+  'rgb(32,164,72)',
+  'rgb(234,31,35)',
+  'rgb(191,55,50)',
+  'rgb(144,192,120)',
+  'rgb(82,82,82)'
+];
+},{}],26:[function(require,module,exports){
 module.exports = require('./monotone').mesher;
-},{"./monotone":22}],22:[function(require,module,exports){
+},{"./monotone":27}],27:[function(require,module,exports){
 "use strict";
 
 var MonotoneMesh = (function(){
@@ -25205,4 +25881,4 @@ if(exports) {
   exports.mesher = MonotoneMesh;
 }
 
-},{}]},{},[1]);
+},{}]},{},[10]);

@@ -1,5 +1,6 @@
 var _ = require('lodash');
 var THREE = require('three');
+var EventDispatcher = require('./eventdispatcher');
 
 var Engine = function() {
   var engine = {};
@@ -7,41 +8,6 @@ var Engine = function() {
   var bindings = {};
   var systems = {};
   var values = {};
-  var listeners = {};
-
-  var on = function(event, callback) {
-    var list = listeners[event];
-    if (list === undefined) {
-      list = listeners[event] = [];
-    }
-    list = listeners[event].push(callback);
-  };
-
-  var dispatchEvent = function(event) {
-    var args = Array.prototype.slice.call(arguments);
-    args.shift();
-
-    var list = listeners[event];
-    if (list === undefined) {
-      return;
-    }
-
-    list.forEach(function(callback) {
-      callback.apply(null, args);
-    });
-  };
-
-  var removeListener = function(event, callback) {
-    var list = listeners[event];
-    if (list === undefined) {
-      return;
-    }
-    _.pull(list, callback);
-
-    if (callback === undefined) {
-      delete listeners[event];
-    }
-  };
 
   var traverse = function(callback) {
     for (var id in map) {
@@ -66,10 +32,12 @@ var Engine = function() {
 
   var bindSystem = function(type, system) {
     systems[type] = system;
+    return system;
   };
 
   var bindValue = function(type, value) {
     values[type] = value;
+    return value;
   };
 
   var createComponent = function(type) {
@@ -95,6 +63,10 @@ var Engine = function() {
       component = createComponent(type);
       component._type = type;
       component.object = object;
+
+      if (component._id === undefined) {
+        component._id = THREE.Math.generateUUID();
+      }
     }
 
     if (map[id] === undefined) {
@@ -137,9 +109,9 @@ var Engine = function() {
   var pause = function(value) {
     pausing = value === undefined ? true : value;
     if (pause) {
-      dispatchEvent('pause');
+      this.emit('pause');
     } else {
-      dispatchEvent('resume');
+      this.emit('resume');
     }
   };
 
@@ -158,6 +130,9 @@ var Engine = function() {
     }
 
     traverse(function(c) {
+      if (c.active === false) {
+        return;
+      }
       if (c._started !== true) {
         if (c.start !== undefined) c.start();
         c._started = true;
@@ -166,6 +141,9 @@ var Engine = function() {
     });
 
     traverse(function(c) {
+      if (c.active === false) {
+        return;
+      }
       if (c.lateTick !== undefined) c.lateTick();
     });
 
@@ -192,13 +170,16 @@ var Engine = function() {
     attach: attach,
     dettach: dettach,
     tick: tick,
-    pause: pause,
-    on: on,
-    removeListener: removeListener
+    pause: pause
   };
+
+  EventDispatcher.prototype.apply(engine);
 
   return engine;
 };
 
 Engine.input = require('./systems/input');
+Engine.collision = require('./systems/collision');
+Engine.eventDispatcher = require('./eventdispatcher');
+
 module.exports = Engine;

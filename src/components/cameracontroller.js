@@ -17,6 +17,7 @@ module.exports = function(input) {
     moveSpeed: 2,
     yawSpeed: 0.03,
     pitchSpeed: 0.03,
+    disableKeys: false,
 
     start: function() {
       this.updatePosition();
@@ -52,6 +53,9 @@ module.exports = function(input) {
     },
 
     _updateKeyboard: function() {
+      if (this.disableKeys) {
+        return;
+      }
       var inputState = input.state;
 
       if (inputState.keydown('-')) {

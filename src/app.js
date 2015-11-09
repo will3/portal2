@@ -2,14 +2,14 @@ var THREE = require('three');
 var $ = require('jquery');
 var _ = require('lodash');
 
-var brock = require('./src/core/engine');
+var brock = require('./core/engine');
 var engine = brock();
-var cpr = require('./cpr/cpr.js');
+var cpr = require('../cpr/cpr.js');
 
 init();
 animate();
 
-var camera, scene, renderer;
+var camera, scene, renderer, directionalLight;
 var depthMaterial, depthTarget, composer;
 
 function init() {
@@ -32,7 +32,7 @@ function init() {
   var ambientLight = new THREE.AmbientLight(0xCCCCCC);
   scene.add(ambientLight);
 
-  var directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  directionalLight = new THREE.DirectionalLight(0xffffff, 0.3);
   directionalLight.position.set(0.5, 1.0, 0.8);
 
   directionalLight.shadowCameraNear = -100;
@@ -53,9 +53,15 @@ function init() {
   scene.add(directionalLight);
 };
 
+var getImageData = true;
+
 function animate() {
   requestAnimationFrame(animate);
   renderer.render(scene, camera);
+  if (getImageData == true) {
+    imgData = renderer.domElement.toDataURL();
+    getImageData = false;
+  }
 };
 
 window.addEventListener('resize', function() {
@@ -67,28 +73,45 @@ window.addEventListener('resize', function() {
 engine.value('scene', scene);
 engine.value('camera', camera);
 engine.value('game', engine);
+engine.value('light', directionalLight);
+engine.value('renderer', renderer);
 
 engine.system('input', brock.input(engine, renderer.domElement));
+var collision = engine.system('collision', brock.collision());
 
-engine.component('cameraController', ['input', require('./src/components/cameracontroller')]);
-engine.component('grid', require('./src/components/grid'));
-engine.component('editor', ['game', 'input', 'camera', require('./src/components/editor')]);
-engine.component('blockModel', require('./src/components/blockmodel'));
-engine.component('firstPersonControl', ['input', require('./src/components/firstpersoncontrol')]);
-engine.component('ground', ['game', require('./src/components/ground')]);
+engine.component('cameraController', ['input', require('./components/cameracontroller')]);
+engine.component('grid', require('./components/grid'));
+engine.component('editor', ['game', 'input', 'camera', 'light', require('./components/editor')]);
+engine.component('blockModel', require('./components/blockmodel'));
+engine.component('ground', ['game', 'collision', require('./components/ground')]);
+
+engine.component('character', ['game', 'collision', 'editor', 'input', require('./components/character')]);
+engine.component('blockBody', require('./components/bodies/block'));
 
 var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
-// if (embedded.length > 0) {
-//   editor.embedded = embedded;
-// }
+engine.value('editor', editor);
 scene.add(object);
+
+var object = new THREE.Object3D();
+object.position.y = 10;
+scene.add(object);
+engine.attach(object, 'character');
+
+collision.addHitTest(require('./hittest/hittest_point_n_block')(editor));
 
 var palette = require('./palette');
 
 //default to first palette
 editor.setColor(new THREE.Color(palette[0]).getHex());
 
+window.onbeforeunload = function() {
+  if (editor.pendingSave) {
+    return "You will lose any unsaved changes. Are you sure to exit?";
+  }
+};
+
+//init color picker
 cpr({
   palette: palette,
   click: function(color) {
@@ -102,8 +125,7 @@ cpr({
   }
 });
 
-var host = 'http://localhost:3000';
-
+//init nav bar
 $('#link-share').click(function() {
   var data = JSON.stringify(editor.blockModel.serialize());
   var blob = new Blob([data], {
@@ -116,7 +138,7 @@ $('#link-open').click(function() {
   $('#fileinput').trigger('click');
 });
 
-editor.commandsChanged(function(commands, redos) {
+editor.on('commands', function(commands, redos) {
   if (commands.length === 0) {
     $('#link-undo i').addClass('disabled');
   } else {
@@ -140,12 +162,6 @@ $('#link-redo').click(function() {
 
 $('#link-undo i').addClass('disabled');
 $('#link-redo i').addClass('disabled');
-
-window.onbeforeunload = function() {
-  if (editor.pendingSave) {
-    return "You will lose any unsaved changes. Are you sure to exit?";
-  }
-};
 
 if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
   alert('The File APIs are not fully supported in this browser.');

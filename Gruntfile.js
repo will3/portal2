@@ -13,9 +13,9 @@ module.exports = function(grunt) {
             'bower_components/jquery/dist/jquery.min.js',
             'bower_components/lodash/lodash.min.js',
             'bower_components/vex/js/*.js',
-            'bundle.js',
+            'src/bundle.js',
+            'src/gallery.js',
             'vendor/*.js',
-            'gallery.js'
           ],
           dest: 'public/js'
         }, {
@@ -49,7 +49,7 @@ module.exports = function(grunt) {
 
     watch: {
       main: {
-        files: ['bower_components/*', 'css/*', 'cpr/*', '*.html', '*.js'],
+        files: ['bower_components/*', 'css/*', 'cpr/*', '*.html', '*.js', 'src/bundle.js'],
         tasks: ['clean', 'copy']
       }
     }
