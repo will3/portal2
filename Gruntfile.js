@@ -15,6 +15,7 @@ module.exports = function(grunt) {
             'bower_components/vex/js/*.js',
             'src/bundle.js',
             'src/gallery.js',
+            'src/terrian.js',
             'vendor/*.js',
           ],
           dest: 'public/js'
@@ -49,7 +50,7 @@ module.exports = function(grunt) {
 
     watch: {
       main: {
-        files: ['bower_components/*', 'css/*', 'cpr/*', '*.html', '*.js', 'src/bundle.js'],
+        files: ['bower_components/*', 'css/*', 'cpr/*', '*.html', '*.js', 'src/bundle.js', 'src/**/*.js'],
         tasks: ['clean', 'copy']
       }
     }

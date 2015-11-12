@@ -16,6 +16,7 @@ app.use(favicon(__dirname + '/public/images/favicon.ico'));
 
 app.get('/', require('./controllers/editor'));
 app.get('/gallery', require('./controllers/gallery'));
+app.get('/terrian', require('./controllers/terrian'));
 
 var port = 3000;
 console.log('started on port: ' + port);

@@ -23774,7 +23774,7 @@ engine.component('cameraController', ['input', require('./components/cameracontr
 engine.component('grid', require('./components/grid'));
 engine.component('editor', ['game', 'input', 'camera', 'light', require('./components/editor')]);
 engine.component('blockModel', require('./components/blockmodel'));
-engine.component('ground', ['game', 'collision', require('./components/ground')]);
+engine.component('ground', ['game', 'collision', require('./components/plane')]);
 
 engine.component('character', ['game', 'collision', 'editor', 'input', require('./components/character')]);
 engine.component('blockBody', require('./components/bodies/block'));
@@ -23783,11 +23783,6 @@ var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
 engine.value('editor', editor);
 scene.add(object);
-
-var object = new THREE.Object3D();
-object.position.y = 10;
-scene.add(object);
-engine.attach(object, 'character');
 
 collision.addHitTest(require('./hittest/hittest_point_n_block')(editor));
 
@@ -23880,10 +23875,15 @@ input.on('change', function() {
 
 //export editor to global
 window.portal = {
-  editor: editor
+  editor: editor,
+  engine: engine,
+  scene: scene,
+  components: {
+    ground: require('./components/ground')
+  }
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../cpr/cpr.js":1,"./components/blockmodel":11,"./components/bodies/block":12,"./components/cameracontroller":13,"./components/character":14,"./components/editor":17,"./components/grid":18,"./components/ground":19,"./core/engine":20,"./hittest/hittest_point_n_block":24,"./palette":25,"jquery":2,"lodash":4}],11:[function(require,module,exports){
+},{"../cpr/cpr.js":1,"./components/blockmodel":11,"./components/bodies/block":12,"./components/cameracontroller":13,"./components/character":14,"./components/editor":17,"./components/grid":18,"./components/ground":19,"./components/plane":20,"./core/engine":21,"./hittest/hittest_point_n_block":25,"./palette":26,"jquery":2,"lodash":4}],11:[function(require,module,exports){
 (function (global){
 var ndarray = require('ndarray');
 var _ = require('lodash');
@@ -24110,7 +24110,7 @@ module.exports = function() {
   };
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../voxel/mesher":26,"lodash":4,"ndarray":5}],12:[function(require,module,exports){
+},{"../voxel/mesher":27,"lodash":4,"ndarray":5}],12:[function(require,module,exports){
 (function (global){
 var ndarray = require('ndarray');
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
@@ -24179,9 +24179,6 @@ module.exports = function(input) {
     },
 
     _updateKeyboard: function() {
-      if (this.disableKeys) {
-        return;
-      }
       var inputState = input.state;
 
       if (inputState.keydown('-')) {
@@ -24198,28 +24195,30 @@ module.exports = function(input) {
       front.y = 0;
       var right = front.clone().cross(up);
 
-      if (inputState.keyhold('a')) {
-        this.target.add(right.clone().setLength(-this.moveSpeed));
-      }
+      if (!this.disableKeys) {
+        if (inputState.keyhold('a')) {
+          this.target.add(right.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('d')) {
-        this.target.add(right.clone().setLength(this.moveSpeed));
-      }
+        if (inputState.keyhold('d')) {
+          this.target.add(right.clone().setLength(this.moveSpeed));
+        }
 
-      if (inputState.keyhold('w')) {
-        this.target.add(front.clone().setLength(this.moveSpeed));
-      }
+        if (inputState.keyhold('w')) {
+          this.target.add(front.clone().setLength(this.moveSpeed));
+        }
 
-      if (inputState.keyhold('s')) {
-        this.target.add(front.clone().setLength(-this.moveSpeed));
-      }
+        if (inputState.keyhold('s')) {
+          this.target.add(front.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('q')) {
-        this.target.add(up.clone().setLength(-this.moveSpeed));
-      }
+        if (inputState.keyhold('q')) {
+          this.target.add(up.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('e')) {
-        this.target.add(up.clone().setLength(this.moveSpeed));
+        if (inputState.keyhold('e')) {
+          this.target.add(up.clone().setLength(this.moveSpeed));
+        }
       }
 
       if (inputState.keyhold('up')) {
@@ -24228,6 +24227,12 @@ module.exports = function(input) {
 
       if (inputState.keyhold('down')) {
         rotation.x -= this.pitchSpeed;
+      }
+
+      if (rotation.x > Math.PI / 2 - 0.01) {
+        rotation.x = Math.PI / 2 - 0.01;
+      } else if (rotation.x < -Math.PI / 2 + 0.01) {
+        rotation.x = -Math.PI / 2 + 0.01;
       }
 
       if (inputState.keyhold('left')) {
@@ -24858,7 +24863,7 @@ module.exports = function(game, input, camera, light) {
   return editor;
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../core/engine":20,"./commands/group":15,"./commands/set":16}],18:[function(require,module,exports){
+},{"../core/engine":21,"./commands/group":15,"./commands/set":16}],18:[function(require,module,exports){
 (function (global){
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
 
@@ -25014,6 +25019,46 @@ module.exports = function(game, collision) {
 };
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"noisejs":8}],20:[function(require,module,exports){
+(function (global){
+var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
+var Noise = require('noisejs').Noise;
+
+module.exports = function(game) {
+  var obj = new THREE.Object3D();
+  var noise = new Noise();
+  var featureNoise = new Noise();
+  noise.seed(Math.random());
+  featureNoise.seed(Math.random());
+
+  return {
+    size: 32,
+    y: 0,
+    visible: true,
+    blockModel: null,
+
+    start: function() {
+      var halfsize = this.size / 2;
+      this.object.add(obj);
+      this.blockModel = game.attach(obj, 'blockModel');
+      this.blockModel.receiveShadow = true;
+
+      for (var x = -halfsize; x < halfsize; x++) {
+        for (var z = -halfsize; z < halfsize; z++) {
+          this.blockModel.set(x, 0, z, {
+            color: 0xcccccc
+          });
+        }
+      }
+    },
+
+    setVisible: function(value) {
+      this.visible = value;
+      obj.visible = this.visible;
+    }
+  }
+};
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"noisejs":8}],21:[function(require,module,exports){
 (function (global){
 var _ = require('lodash');
 var THREE = (typeof window !== "undefined" ? window['THREE'] : typeof global !== "undefined" ? global['THREE'] : null);
@@ -25201,7 +25246,7 @@ Engine.eventDispatcher = require('./eventdispatcher');
 
 module.exports = Engine;
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./eventdispatcher":21,"./systems/collision":22,"./systems/input":23,"lodash":4}],21:[function(require,module,exports){
+},{"./eventdispatcher":22,"./systems/collision":23,"./systems/input":24,"lodash":4}],22:[function(require,module,exports){
 var EventDispatcher = function() {
   this._listeners = {};
 };
@@ -25252,7 +25297,7 @@ EventDispatcher.prototype = {
 };
 
 module.exports = EventDispatcher;
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 var EventDispatcher = require('../eventdispatcher');
 
 module.exports = function() {
@@ -25392,7 +25437,7 @@ module.exports = function() {
 
   return collision;
 };
-},{"../eventdispatcher":21}],23:[function(require,module,exports){
+},{"../eventdispatcher":22}],24:[function(require,module,exports){
 var keycode = require('keycode');
 var _ = require('lodash');
 
@@ -25571,7 +25616,7 @@ module.exports = function(game, element) {
     }
   };
 };
-},{"keycode":3,"lodash":4}],24:[function(require,module,exports){
+},{"keycode":3,"lodash":4}],25:[function(require,module,exports){
 module.exports = function(editor) {
   return {
     shouldResolve: function(a, b) {
@@ -25603,7 +25648,7 @@ module.exports = function(editor) {
     }
   }
 };
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = [
   'rgb(67,72,158)',
   'rgb(252,226,193)',
@@ -25626,9 +25671,9 @@ module.exports = [
   'rgb(144,192,120)',
   'rgb(82,82,82)'
 ];
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = require('./monotone').mesher;
-},{"./monotone":27}],27:[function(require,module,exports){
+},{"./monotone":28}],28:[function(require,module,exports){
 "use strict";
 
 var MonotoneMesh = (function(){

@@ -53,9 +53,6 @@ module.exports = function(input) {
     },
 
     _updateKeyboard: function() {
-      if (this.disableKeys) {
-        return;
-      }
       var inputState = input.state;
 
       if (inputState.keydown('-')) {
@@ -72,28 +69,30 @@ module.exports = function(input) {
       front.y = 0;
       var right = front.clone().cross(up);
 
-      if (inputState.keyhold('a')) {
-        this.target.add(right.clone().setLength(-this.moveSpeed));
-      }
+      if (!this.disableKeys) {
+        if (inputState.keyhold('a')) {
+          this.target.add(right.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('d')) {
-        this.target.add(right.clone().setLength(this.moveSpeed));
-      }
+        if (inputState.keyhold('d')) {
+          this.target.add(right.clone().setLength(this.moveSpeed));
+        }
 
-      if (inputState.keyhold('w')) {
-        this.target.add(front.clone().setLength(this.moveSpeed));
-      }
+        if (inputState.keyhold('w')) {
+          this.target.add(front.clone().setLength(this.moveSpeed));
+        }
 
-      if (inputState.keyhold('s')) {
-        this.target.add(front.clone().setLength(-this.moveSpeed));
-      }
+        if (inputState.keyhold('s')) {
+          this.target.add(front.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('q')) {
-        this.target.add(up.clone().setLength(-this.moveSpeed));
-      }
+        if (inputState.keyhold('q')) {
+          this.target.add(up.clone().setLength(-this.moveSpeed));
+        }
 
-      if (inputState.keyhold('e')) {
-        this.target.add(up.clone().setLength(this.moveSpeed));
+        if (inputState.keyhold('e')) {
+          this.target.add(up.clone().setLength(this.moveSpeed));
+        }
       }
 
       if (inputState.keyhold('up')) {
@@ -102,6 +101,12 @@ module.exports = function(input) {
 
       if (inputState.keyhold('down')) {
         rotation.x -= this.pitchSpeed;
+      }
+
+      if (rotation.x > Math.PI / 2 - 0.01) {
+        rotation.x = Math.PI / 2 - 0.01;
+      } else if (rotation.x < -Math.PI / 2 + 0.01) {
+        rotation.x = -Math.PI / 2 + 0.01;
       }
 
       if (inputState.keyhold('left')) {

@@ -83,7 +83,7 @@ engine.component('cameraController', ['input', require('./components/cameracontr
 engine.component('grid', require('./components/grid'));
 engine.component('editor', ['game', 'input', 'camera', 'light', require('./components/editor')]);
 engine.component('blockModel', require('./components/blockmodel'));
-engine.component('ground', ['game', 'collision', require('./components/ground')]);
+engine.component('ground', ['game', 'collision', require('./components/plane')]);
 
 engine.component('character', ['game', 'collision', 'editor', 'input', require('./components/character')]);
 engine.component('blockBody', require('./components/bodies/block'));
@@ -92,11 +92,6 @@ var object = new THREE.Object3D();
 var editor = engine.attach(object, 'editor');
 engine.value('editor', editor);
 scene.add(object);
-
-var object = new THREE.Object3D();
-object.position.y = 10;
-scene.add(object);
-engine.attach(object, 'character');
 
 collision.addHitTest(require('./hittest/hittest_point_n_block')(editor));
 
@@ -189,5 +184,10 @@ input.on('change', function() {
 
 //export editor to global
 window.portal = {
-  editor: editor
+  editor: editor,
+  engine: engine,
+  scene: scene,
+  components: {
+    ground: require('./components/ground')
+  }
 };
