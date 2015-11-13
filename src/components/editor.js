@@ -62,7 +62,7 @@ module.exports = function(game, input, camera, light) {
   //drag state, for commands that uses drag
   var dragState = initDragState();
 
-  var cameraController;
+  var cameraController = null;
 
   var editor = {
     blockModel: null,
@@ -73,6 +73,7 @@ module.exports = function(game, input, camera, light) {
     pendingSave: false,
     empty: true,
     showShadows: true,
+    disableCameraKeys: false,
 
     setShowShadows: function(value) {
       if (this.showShadows !== value) {
@@ -134,7 +135,7 @@ module.exports = function(game, input, camera, light) {
 
       this._updateHoverover();
       cameraController = game.attach(camera, 'cameraController');
-      cameraController.disableKeys = true;
+      cameraController.disableKeys = this.disableCameraKeys;
     },
 
     load: function(data) {
@@ -220,9 +221,12 @@ module.exports = function(game, input, camera, light) {
       if (inputState.keydown('/')) {
         this.setShowShadows(!this.showShadows);
       }
+    },
 
-      if (inputState.keydown('l')) {
-        cameraController.disableKeys = !cameraController.disableKeys;
+    setDisableCameraKeys: function(value) {
+      this.disableCameraKeys = value;
+      if (cameraController !== null) {
+        cameraController.disableKeys = value;
       }
     },
 
