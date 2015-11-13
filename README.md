@@ -1,5 +1,5 @@
 ## Brock
-### blocks creation tool
+### block creation tool
 
 run the following commands in terminals (seperate windows)  
 **npm run start**  
