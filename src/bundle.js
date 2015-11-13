@@ -24675,7 +24675,7 @@ module.exports = function(game, input, camera, light) {
             dragState.command.updateCoords(dragState.startCoord, dragState.endCoord);
           } else {
             dragState.command = groupCommand({
-              blockModel: ground.blockModel,
+              blockModel: this.blockModel,
               startCoord: dragState.startCoord,
               endCoord: dragState.endCoord,
               value: holdButton === 2 ? undefined : {
